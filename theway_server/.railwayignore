@@ -1,0 +1,12 @@
+# Railway deployment ignore file
+# Development files
+.DS_Store
+*.log
+
+# Documentation
+*.md
+claudedocs/
+
+# Local data
+logs/
+data/way_game.sqlite
