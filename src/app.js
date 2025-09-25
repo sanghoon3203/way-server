@@ -9,6 +9,11 @@ const logger = require('./config/logger');
 
 const app = express();
 
+// 프록시 환경(Railway 등)에서 secure 쿠키/req.ip 등을 올바르게 처리
+if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+}
+
 // =============================================================================
 // 미들웨어 설정
 // =============================================================================
