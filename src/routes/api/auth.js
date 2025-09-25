@@ -45,8 +45,11 @@ router.post('/register', [
         .isLength({ min: 2, max: 20 })
         .withMessage('플레이어 이름은 2-20자 사이여야 합니다')
 ], asyncHandler(async (req, res) => {
+        console.info('[REGISTER] incoming body:', req.body);
+
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
+            console.warn('[REGISTER] validation failed:', errors.array());
             return res.status(400).json({
                 success: false,
                 error: '입력 데이터가 유효하지 않습니다',
@@ -55,6 +58,7 @@ router.post('/register', [
         }
 
         const { email, password, playerName } = req.body;
+        console.info('[REGISTER] normalized payload:', { email, playerName });
 
         const existingUser = await DatabaseManager.get(
             'SELECT id FROM users WHERE email = ?',
@@ -62,6 +66,7 @@ router.post('/register', [
         );
 
         if (existingUser) {
+            console.warn('[REGISTER] duplicate email detected:', email);
             return res.status(409).json({
                 success: false,
                 error: '이미 존재하는 이메일입니다',
@@ -71,6 +76,7 @@ router.post('/register', [
 
         const saltRounds = 12;
         const passwordHash = await bcrypt.hash(password, saltRounds);
+        console.info('[REGISTER] password hashed for email:', email);
 
         const userId = randomUUID();
         const playerId = randomUUID();
@@ -85,11 +91,13 @@ router.post('/register', [
                 params: [playerId, userId, playerName]
             }
         ]);
+        console.info('[REGISTER] user/player inserted:', { userId, playerId });
 
         const newPlayer = await DatabaseManager.get(
             `SELECT id, name, level, money, current_license FROM players WHERE id = ?`,
             [playerId]
         );
+        console.info('[REGISTER] loaded player row:', newPlayer);
 
         const token = jwt.sign(
             { userId, playerId },
@@ -102,6 +110,7 @@ router.post('/register', [
             process.env.JWT_REFRESH_SECRET,
             { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
         );
+        console.info('[REGISTER] jwt tokens generated for user:', userId);
 
         logger.info('새 사용자 등록:', { userId, email, playerName });
 
@@ -138,9 +147,11 @@ router.post('/login', [
         .withMessage('비밀번호를 입력해주세요')
 ], async (req, res) => {
     try {
-        // 유효성 검사
+        console.info('[LOGIN] incoming body:', req.body);
+
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
+            console.warn('[LOGIN] validation failed:', errors.array());
             return res.status(400).json({
                 success: false,
                 error: '입력 데이터가 유효하지 않습니다',
@@ -149,12 +160,14 @@ router.post('/login', [
         }
 
         const { email, password } = req.body;
+        console.info('[LOGIN] attempt email:', email);
 
         // 사용자 조회
         const user = await DatabaseManager.get(
             'SELECT id, password_hash, is_active FROM users WHERE email = ?',
             [email]
         );
+        console.info('[LOGIN] loaded user:', user);
 
         if (!user) {
             return res.status(401).json({
@@ -178,12 +191,14 @@ router.post('/login', [
                 error: '이메일 또는 비밀번호가 올바르지 않습니다'
             });
         }
+        console.info('[LOGIN] password verified for user:', user.id);
 
         // 플레이어 정보 조회
         const player = await DatabaseManager.get(
             'SELECT * FROM players WHERE user_id = ?',
             [user.id]
         );
+        console.info('[LOGIN] loaded player:', player);
 
         if (!player) {
             return res.status(404).json({
@@ -197,6 +212,7 @@ router.post('/login', [
             'UPDATE players SET last_active = CURRENT_TIMESTAMP WHERE id = ?',
             [player.id]
         );
+        console.info('[LOGIN] updated last_active for player:', player.id);
 
         // JWT 토큰 생성
         const token = jwt.sign(
@@ -210,6 +226,7 @@ router.post('/login', [
             process.env.JWT_REFRESH_SECRET,
             { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
         );
+        console.info('[LOGIN] jwt tokens generated for user:', user.id);
 
         logger.info('사용자 로그인:', { userId: user.id, playerId: player.id, email });
 
@@ -233,6 +250,7 @@ router.post('/login', [
 
     } catch (error) {
         logger.error('로그인 실패:', error);
+        console.error('[LOGIN] unexpected error:', error);
         res.status(500).json({
             success: false,
             error: '서버 오류가 발생했습니다'
