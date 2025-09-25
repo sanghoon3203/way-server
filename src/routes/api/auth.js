@@ -86,6 +86,11 @@ router.post('/register', [
             }
         ]);
 
+        const newPlayer = await DatabaseManager.get(
+            `SELECT id, name, level, money, current_license FROM players WHERE id = ?`,
+            [playerId]
+        );
+
         const token = jwt.sign(
             { userId, playerId },
             process.env.JWT_SECRET,
@@ -107,7 +112,14 @@ router.post('/register', [
                 userId,
                 playerId,
                 token,
-                refreshToken
+                refreshToken,
+                player: newPlayer ? {
+                    id: newPlayer.id,
+                    name: newPlayer.name,
+                    level: newPlayer.level ?? 1,
+                    money: newPlayer.money ?? 0,
+                    currentLicense: newPlayer.current_license ?? 0
+                } : null
             }
         });
 }));
