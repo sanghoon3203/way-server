@@ -7,6 +7,9 @@ const DatabaseManager = require('./database/DatabaseManager');
 const logger = require('./config/logger');
 const metricsCollector = require('./utils/MetricsCollector');
 
+console.info('[ENV CHECK] JWT_SECRET exists:', !!process.env.JWT_SECRET);
+console.info('[ENV CHECK] JWT_REFRESH_SECRET exists:', !!process.env.JWT_REFRESH_SECRET);
+
 const PORT = process.env.PORT || 3000;
 
 // HTTP 서버 생성
