@@ -253,6 +253,18 @@ class DatabaseManager {
                 details TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (player_id) REFERENCES players(id)
+            )`,
+
+            // 비밀번호 재설정 토큰
+            `CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                email TEXT NOT NULL,
+                token TEXT NOT NULL,
+                expires_at DATETIME NOT NULL,
+                used_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )`
         ];
 
@@ -276,6 +288,8 @@ class DatabaseManager {
             'CREATE INDEX IF NOT EXISTS idx_trade_records_created_at ON trade_records(created_at)',
             'CREATE INDEX IF NOT EXISTS idx_activity_logs_player_id ON activity_logs(player_id)',
             'CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at)',
+            'CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_email ON password_reset_tokens(email)',
+            'CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id)'
         ];
 
         for (const indexQuery of indexes) {
