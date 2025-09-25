@@ -158,6 +158,25 @@ class DatabaseManager {
                 last_restocked DATETIME DEFAULT CURRENT_TIMESTAMP
             )`,
 
+            // 퀘스트 테이블 (대시보드 통계용 최소 스키마)
+            `CREATE TABLE IF NOT EXISTS quests (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                status TEXT DEFAULT 'active',
+                category TEXT DEFAULT 'general',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`,
+
+            // 스킬 테이블 (대시보드 통계용 최소 스키마)
+            `CREATE TABLE IF NOT EXISTS skills (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT DEFAULT 'general',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`,
+
             // 상인 선호도
             `CREATE TABLE IF NOT EXISTS merchant_preferences (
                 id TEXT PRIMARY KEY,
