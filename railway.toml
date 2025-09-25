@@ -1,0 +1,6 @@
+[build]
+  path = "."
+  command = "npm ci"
+
+[deploy]
+  command = "npm start"

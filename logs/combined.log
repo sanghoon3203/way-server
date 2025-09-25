@@ -1084,3 +1084,8 @@
 {"level":"info","message":"실시간 메트릭 수집 시작됨","service":"way-game-server","timestamp":"2025-09-25 16:48:42"}
 {"level":"info","message":"📊 실시간 메트릭 수집 시작됨","service":"way-game-server","timestamp":"2025-09-25 16:48:42"}
 {"level":"info","message":"==================================================","service":"way-game-server","timestamp":"2025-09-25 16:48:42"}
+{"level":"info","message":"데이터베이스 연결됨: ./data/way_game.sqlite","service":"way-game-server","timestamp":"2025-09-25 18:18:21"}
+{"level":"info","message":"모든 테이블 생성 완료","service":"way-game-server","timestamp":"2025-09-25 18:18:21"}
+{"level":"info","message":"확장 테이블 생성 시작...","service":"way-game-server","timestamp":"2025-09-25 18:18:21"}
+{"level":"info","message":"모든 확장 테이블 및 인덱스 생성 완료","service":"way-game-server","timestamp":"2025-09-25 18:18:21"}
+{"level":"info","message":"모든 인덱스 생성 완료","service":"way-game-server","timestamp":"2025-09-25 18:18:21"}
