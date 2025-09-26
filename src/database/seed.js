@@ -1,7 +1,227 @@
 // 📁 src/database/seed.js - 기본 샘플 데이터 추가
+const fs = require('fs');
+const path = require('path');
 const DatabaseManager = require('./DatabaseManager');
 const { randomUUID } = require('crypto');
 const logger = require('../config/logger');
+
+const CATEGORY_TRIGGER_MAP = {
+    greeting: 'greeting',
+    trading: 'trade',
+    goodbye: 'goodbye',
+    relationship: 'relationship',
+    special: 'special_event'
+};
+
+const RARITY_GRADE_MAP = {
+    f: 0,
+    e: 0,
+    d: 0,
+    c: 0,
+    b: 1,
+    a: 2,
+    r: 3,
+    s: 4,
+    sr: 4,
+    ssr: 5,
+    u: 4,
+    ur: 5,
+    l: 5,
+    legendary: 5
+};
+
+const DEFAULT_CATEGORY_BY_TYPE = {
+    electronics: 'electronics',
+    fashion: 'clothing',
+    enhancement: 'arts',
+    technology: 'electronics',
+    fantasy: 'antiques',
+    religious: 'antiques',
+    beverages: 'food',
+    weapons: 'weapons',
+    temporal: 'electronics',
+    financial: 'electronics',
+    cultural: 'arts',
+    antique: 'antiques',
+    artist: 'arts',
+    craftsman: 'arts',
+    scholar: 'antiques',
+    food_master: 'food',
+    trader: 'clothing',
+    importer: 'electronics'
+};
+
+const MERCHANT_DATA_DIR = path.join(__dirname, 'merchant_data');
+const merchantProfiles = loadMerchantProfiles();
+
+function loadMerchantProfiles() {
+    const profiles = new Map();
+
+    if (!fs.existsSync(MERCHANT_DATA_DIR)) {
+        logger.warn(`상인 데이터 디렉터리를 찾을 수 없습니다: ${MERCHANT_DATA_DIR}`);
+        return profiles;
+    }
+
+    const entries = fs.readdirSync(MERCHANT_DATA_DIR);
+    for (const entry of entries) {
+        const folderPath = path.join(MERCHANT_DATA_DIR, entry);
+        if (!fs.statSync(folderPath).isDirectory()) {
+            continue;
+        }
+
+        const jsonFile = fs.readdirSync(folderPath).find(file => file.toLowerCase().endsWith('.json'));
+        if (!jsonFile) {
+            continue;
+        }
+
+        const filePath = path.join(folderPath, jsonFile);
+
+        try {
+            const raw = fs.readFileSync(filePath, 'utf8');
+            const parsed = JSON.parse(raw);
+            const npcEntries = Object.entries(parsed.npcs || {});
+            if (npcEntries.length === 0) {
+                continue;
+            }
+
+            const [npcKey, npcData] = npcEntries[0];
+            const slug = (npcData.id || npcKey || entry).toLowerCase();
+
+            const nameKey = (npcData.name || '').replace(/\s+/g, '').toLowerCase();
+
+            const nameKey = (npcData.name || '').replace(/\s+/g, '').toLowerCase();
+
+            profiles.set(slug, {
+                slug,
+                npcKey,
+                npcData,
+                nameKey,
+                location: npcData.location || '',
+                profileText: npcData.profile || '',
+                shopItems: Array.isArray(npcData.shop_items) ? npcData.shop_items : [],
+                dialogues: npcData.dialogues || {},
+                fallbackDialogues: Array.isArray(npcData.dialogue) ? npcData.dialogue : [],
+                sourcePath: filePath
+            });
+        } catch (error) {
+            logger.warn(`상인 JSON 파싱 실패 (${filePath}): ${error.message}`);
+        }
+    }
+
+    return profiles;
+}
+
+function getMerchantProfile(identifier) {
+    if (!identifier) {
+        return undefined;
+    }
+
+    const normalized = String(identifier).toLowerCase().replace(/\s+/g, '');
+    if (merchantProfiles.has(normalized)) {
+        return merchantProfiles.get(normalized);
+    }
+
+    for (const profile of merchantProfiles.values()) {
+        if (profile.slug === normalized || profile.nameKey === normalized) {
+            return profile;
+        }
+    }
+
+    return undefined;
+}
+
+function mapCategoryToTrigger(category) {
+    return CATEGORY_TRIGGER_MAP[category] || 'special_event';
+}
+
+function getGradeFromRarity(rarity) {
+    if (!rarity) {
+        return 0;
+    }
+
+    const tokens = String(rarity)
+        .split(/[\s,\/]+/)
+        .map(token => token.trim().toLowerCase())
+        .filter(Boolean);
+
+    if (tokens.length === 0) {
+        return 0;
+    }
+
+    let grade = 0;
+    for (const token of tokens) {
+        grade = Math.max(grade, RARITY_GRADE_MAP[token] ?? 0);
+    }
+
+    return grade;
+}
+
+function getDefaultCategory(merchantType) {
+    const normalized = (merchantType || '').toLowerCase();
+    return DEFAULT_CATEGORY_BY_TYPE[normalized] || 'general';
+}
+
+function splitSentences(text) {
+    if (!text) {
+        return [];
+    }
+    return text
+        .replace(/\s+/g, ' ')
+        .split(/[.!?…]/)
+        .map(sentence => sentence.trim())
+        .filter(sentence => sentence.length > 0);
+}
+
+function buildSentence(base, fallback) {
+    return base && base.length > 0 ? base : fallback;
+}
+
+function generateDialoguesFromProfile(profile) {
+    const dialogues = {
+        greeting: [],
+        trading: [],
+        goodbye: [],
+        relationship: [],
+        special: []
+    };
+
+    const name = profile?.npcData?.name || '상인';
+    const location = profile?.location || '이곳';
+    const profileText = profile?.profileText || '';
+    const sentences = splitSentences(profileText);
+
+    const defaultGreeting = `${location}에 오신 것을 환영합니다.`;
+    const defaultTrading = '필요하신 상품이 있다면 말씀해 주세요. 최선을 다해 도와드릴게요.';
+    const defaultGoodbye = '다음에 또 찾아주세요. 항상 기다리고 있겠습니다.';
+    const defaultRelationship = `${name}와의 인연이 깊어질수록 더 많은 기회가 열릴 거예요.`;
+    const defaultSpecial = '특별한 손님을 위한 비밀 상품도 준비되어 있습니다.';
+
+    const highlights = sentences.slice(0, 3);
+
+    dialogues.greeting.push(buildSentence(highlights[0], `${defaultGreeting} 저는 ${name}입니다.`));
+    dialogues.trading.push(buildSentence(highlights[1], defaultTrading));
+    dialogues.goodbye.push(buildSentence(highlights[2], defaultGoodbye));
+    dialogues.relationship.push(defaultRelationship);
+    dialogues.special.push(defaultSpecial);
+
+    return dialogues;
+}
+
+function mergeDialogues(base, extra) {
+    const result = { ...base };
+    if (!extra) {
+        return result;
+    }
+
+    for (const [category, lines] of Object.entries(extra)) {
+        if (!Array.isArray(lines) || lines.length === 0) {
+            continue;
+        }
+        result[category] = [...lines];
+    }
+
+    return result;
+}
 
 async function seedDatabase(options = {}) {
     const { reuseConnection = false, force = false } = options;
@@ -21,6 +241,7 @@ async function seedDatabase(options = {}) {
 
         await seedIfNeeded('item_templates', seedItemTemplates, '아이템 템플릿', { force, seededTables });
         await seedIfNeeded('merchants', seedMerchants, '상인', { force, seededTables });
+        await seedIfNeeded('merchant_dialogues', seedMerchantDialogues, '상인 대화', { force, seededTables });
         await seedIfNeeded('merchant_inventory', seedMerchantInventory, '상인 인벤토리', { force, seededTables });
         await seedIfNeeded('quest_templates', seedQuestTemplates, '퀘스트 템플릿', { force, seededTables });
         await seedIfNeeded('skill_templates', seedSkillTemplates, '스킬 템플릿', { force, seededTables });
@@ -61,6 +282,8 @@ async function isTableEmpty(tableName) {
 
 async function clearSeedTables() {
     const tablesInDeleteOrder = [
+        'merchant_dialogue_logs',
+        'merchant_dialogues',
         'merchant_inventory',
         'merchant_preferences',
         'merchant_relationships',
@@ -120,7 +343,14 @@ async function seedItemTemplates() {
         { name: '청자', category: 'antiques', grade: 5, basePrice: 2000000, description: '고려청자' },
         { name: '백자', category: 'antiques', grade: 4, basePrice: 1200000, description: '조선백자' },
         { name: '나전칠기', category: 'antiques', grade: 3, basePrice: 600000, description: '전통 나전칠기' },
-        { name: '고가구', category: 'antiques', grade: 4, basePrice: 1500000, description: '조선시대 가구' }
+        { name: '고가구', category: 'antiques', grade: 4, basePrice: 1500000, description: '조선시대 가구' },
+
+        // 무기/장비 카테고리
+        { name: '강철 검', category: 'weapons', grade: 3, basePrice: 450000, description: '숙련 대장장이의 작품' },
+        { name: '이중 도끼', category: 'weapons', grade: 2, basePrice: 320000, description: '균형 잡힌 전투 도끼' },
+        { name: '방어구 세트', category: 'weapons', grade: 4, basePrice: 600000, description: '강화 합금 방어구 세트' },
+        { name: '권총 개조 키트', category: 'weapons', grade: 2, basePrice: 280000, description: '개인화된 무기 개조 키트' },
+        { name: '강화 탄환 팩', category: 'weapons', grade: 1, basePrice: 120000, description: '고성능 탄환 팩' }
     ];
     
     for (let i = 0; i < itemTemplates.length; i++) {
@@ -157,6 +387,7 @@ async function seedMerchants() {
     const merchants = [
         // 네오 시부야 - 사이버펑크 스타일
         {
+            id: 'seoyena',
             name: '서예나',
             title: '네오-시티 스타일리스트',
             type: 'fashion',
@@ -172,6 +403,7 @@ async function seedMerchants() {
 
         // 마포 크레이티브 허브 - 천사혈통 염력 전문가
         {
+            id: 'mari',
             name: '마리',
             title: '염력 부여 전문가',
             type: 'enhancement',
@@ -187,6 +419,7 @@ async function seedMerchants() {
 
         // 아카데믹 가든 - 과학 임플란트 전문가
         {
+            id: 'kimsehwui',
             name: '김세휘',
             title: '임플란트 연구자',
             type: 'technology',
@@ -203,6 +436,7 @@ async function seedMerchants() {
 
         // 레이크사이드 원더랜드 - 드림크리스탈 전문가
         {
+            id: 'anipark',
             name: '애니박',
             title: '드림크리스탈 공주',
             type: 'fantasy',
@@ -219,6 +453,7 @@ async function seedMerchants() {
 
         // 메트로 폴리스 - 성스러운 아이템 전문가
         {
+            id: 'catarinachoi',
             name: '카타리나 최',
             title: '성당 프리스트',
             type: 'religious',
@@ -234,6 +469,7 @@ async function seedMerchants() {
 
         // 이스트리버빌리지 - 커피하우스 운영
         {
+            id: 'jinbaekho',
             name: '진백호',
             title: '테라 커피하우스 주인',
             type: 'beverages',
@@ -249,6 +485,7 @@ async function seedMerchants() {
 
         // 이스트리버빌리지 - 대장장이 무기 제작
         {
+            id: 'jubulsu',
             name: '주불수',
             title: '크래프트타운 대장장이',
             type: 'weapons',
@@ -265,6 +502,7 @@ async function seedMerchants() {
 
         // 시간의 회랑 - 시간 보안 장비
         {
+            id: 'kijuri',
             name: '기주리',
             title: '시간 보안관',
             type: 'temporal',
@@ -295,7 +533,7 @@ async function seedMerchants() {
             }
         };
 
-        addColumn('id', randomUUID());
+        addColumn('id', merchant.id || randomUUID());
         addColumn('name', merchant.name);
         addColumn('title', merchant.title);
         addColumn('merchant_type', merchant.type);
@@ -324,57 +562,155 @@ async function seedMerchants() {
 
 async function seedMerchantInventory() {
     logger.info('상인 인벤토리 생성...');
-    
-    // 모든 상인과 아이템 조회
-    const merchants = await DatabaseManager.all('SELECT id, merchant_type FROM merchants');
-    const items = await DatabaseManager.all('SELECT id, category, base_price FROM item_templates');
-    
-    // 상인 타입별 선호 카테고리 매핑
-    const merchantCategories = {
-        'electronics': ['electronics'],
-        'financial': ['electronics', 'arts', 'antiques'],
-        'cultural': ['arts', 'food'],
-        'antique': ['antiques', 'arts'],
-        'artist': ['arts'],
-        'craftsman': ['arts', 'clothing'],
-        'scholar': ['antiques', 'arts'],
-        'food_master': ['food'],
-        'trader': ['electronics', 'clothing', 'food'],
-        'importer': ['electronics', 'clothing']
-    };
-    
+
+    const merchants = await DatabaseManager.all('SELECT id, name, merchant_type, required_license FROM merchants');
+    const existingTemplates = await DatabaseManager.all('SELECT id, name, category, grade, required_license, base_price, icon_id FROM item_templates');
+
+    const itemsByName = new Map();
+    let maxIconId = 0;
+
+    for (const template of existingTemplates) {
+        itemsByName.set(template.name, template);
+        if (typeof template.icon_id === 'number') {
+            maxIconId = Math.max(maxIconId, template.icon_id);
+        }
+    }
+
+    let insertedCount = 0;
+
     for (const merchant of merchants) {
-        const preferredCategories = merchantCategories[merchant.merchant_type] || ['electronics', 'clothing', 'food'];
-        
-        // 각 상인별로 5-10개의 랜덤 아이템 추가
-        const itemCount = Math.floor(Math.random() * 6) + 5;
-        const selectedItems = items
-            .filter(item => preferredCategories.includes(item.category))
-            .sort(() => 0.5 - Math.random())
-            .slice(0, itemCount);
-        
-        for (const item of selectedItems) {
-            // 가격 변동 (기본 가격의 80% ~ 120%)
-            const priceVariation = 0.8 + Math.random() * 0.4;
-            const currentPrice = Math.round(item.base_price * priceVariation);
-            
-            // 재고 수량 (1-5개)
-            const quantity = Math.floor(Math.random() * 5) + 1;
-            
+        const profile = getMerchantProfile(merchant.id) || getMerchantProfile(merchant.name);
+        const shopItems = profile?.shopItems ?? [];
+
+        if (shopItems.length === 0) {
+            logger.warn('상인 JSON에 shop_items 항목이 없습니다. 무작위 아이템을 사용할 수 없습니다.', { merchant: merchant.name, merchantId: merchant.id });
+            continue;
+        }
+
+        const insertedTemplateIds = new Set();
+
+        for (const item of shopItems) {
+            const itemName = (item.name || '').trim();
+            if (!itemName) {
+                continue;
+            }
+
+            let template = itemsByName.get(itemName);
+
+            if (!template) {
+                const category = (item.category || getDefaultCategory(merchant.merchant_type)).trim();
+                const grade = getGradeFromRarity(item.rarity);
+                const basePrice = Number.isFinite(Number(item.basePrice)) ? Number(item.basePrice) : Number(item.price) || 10000;
+                const requiredLicense = Number.isFinite(Number(item.requiredLicense)) ? Number(item.requiredLicense) : (grade >= 3 ? 1 : 0);
+                const description = item.description || '';
+
+                maxIconId += 1;
+
+                const templateId = randomUUID();
+                await DatabaseManager.run(`
+                    INSERT INTO item_templates (id, name, category, grade, required_license, base_price, weight, description, icon_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    templateId,
+                    itemName,
+                    category,
+                    grade,
+                    requiredLicense,
+                    basePrice,
+                    1.0,
+                    description,
+                    maxIconId
+                ]);
+
+                template = {
+                    id: templateId,
+                    name: itemName,
+                    category,
+                    grade,
+                    required_license: requiredLicense,
+                    base_price: basePrice,
+                    icon_id: maxIconId
+                };
+
+                itemsByName.set(itemName, template);
+            }
+
+            if (insertedTemplateIds.has(template.id)) {
+                continue;
+            }
+            insertedTemplateIds.add(template.id);
+
+            const currentPrice = Number(item.price) || template.base_price || 10000;
+            const quantity = Math.max(1, Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 1);
+
             await DatabaseManager.run(`
                 INSERT INTO merchant_inventory (id, merchant_id, item_template_id, quantity, current_price, last_updated)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             `, [
                 randomUUID(),
                 merchant.id,
-                item.id,
+                template.id,
                 quantity,
                 currentPrice
             ]);
+
+            insertedCount += 1;
         }
     }
-    
-    logger.info('상인 인벤토리 생성 완료');
+
+    logger.info(`상인 인벤토리 ${insertedCount}건 생성 완료`);
+}
+
+async function seedMerchantDialogues() {
+    logger.info('상인 대화 데이터 생성...');
+
+    const merchants = await DatabaseManager.all('SELECT id, name FROM merchants');
+    let insertedCount = 0;
+
+    for (const merchant of merchants) {
+        const profile = getMerchantProfile(merchant.id) || getMerchantProfile(merchant.name);
+
+        if (!profile) {
+            logger.warn('상인 JSON을 찾지 못했습니다. 대사 시드를 건너뜁니다.', { merchant: merchant.name, merchantId: merchant.id });
+            continue;
+        }
+
+        let combinedDialogues = mergeDialogues(generateDialoguesFromProfile(profile), profile.dialogues);
+
+        if ((!combinedDialogues.greeting || combinedDialogues.greeting.length === 0) && profile.fallbackDialogues.length > 0) {
+            combinedDialogues.greeting = [...profile.fallbackDialogues];
+        }
+
+        const categories = Object.entries(combinedDialogues).filter(([, lines]) => Array.isArray(lines) && lines.length > 0);
+
+        for (const [category, lines] of categories) {
+            const triggerType = mapCategoryToTrigger(category);
+
+            for (let index = 0; index < lines.length; index += 1) {
+                const line = lines[index];
+                if (!line) {
+                    continue;
+                }
+
+                await DatabaseManager.run(`
+                    INSERT INTO merchant_dialogues (id, merchant_id, trigger_type, trigger_condition, dialogue_text, dialogue_order, emotion, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                `, [
+                    randomUUID(),
+                    merchant.id,
+                    triggerType,
+                    '{}',
+                    line,
+                    index,
+                    null
+                ]);
+
+                insertedCount += 1;
+            }
+        }
+    }
+
+    logger.info(`상인 대화 ${insertedCount}건 생성 완료`);
 }
 
 async function seedQuestTemplates() {
