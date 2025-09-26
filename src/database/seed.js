@@ -146,6 +146,13 @@ async function seedItemTemplates() {
 
 async function seedMerchants() {
     logger.info('상인 데이터 생성...');
+
+    const merchantColumns = await DatabaseManager.all("PRAGMA table_info(merchants)");
+    const hasImageFilenameColumn = merchantColumns.some(column => column.name === 'image_filename');
+
+    if (!hasImageFilenameColumn) {
+        logger.warn('merchants 테이블에 image_filename 컬럼이 없습니다. 마이그레이션 실행을 권장하며, 기본 이미지 없이 시드를 진행합니다.');
+    }
     
     const merchants = [
         // 네오 시부야 - 사이버펑크 스타일
@@ -274,28 +281,42 @@ async function seedMerchants() {
     ];
     
     for (const merchant of merchants) {
-        await DatabaseManager.run(`
-            INSERT INTO merchants (
-                id, name, title, merchant_type, personality, district,
-                lat, lng, required_license, price_modifier, negotiation_difficulty,
-                reputation_requirement, image_filename, is_active, last_restocked
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `, [
-            randomUUID(),
-            merchant.name,
-            merchant.title,
-            merchant.type,
-            merchant.personality,
-            merchant.district,
-            merchant.lat,
-            merchant.lng,
-            merchant.requiredLicense || 0,
-            merchant.priceModifier,
-            merchant.negotiationDifficulty,
-            merchant.reputationRequirement,
-            merchant.imageFileName,
-            1
-        ]);
+        const columns = [];
+        const placeholders = [];
+        const params = [];
+
+        const addColumn = (column, value, { raw = false } = {}) => {
+            columns.push(column);
+            if (raw) {
+                placeholders.push(value);
+            } else {
+                placeholders.push('?');
+                params.push(value);
+            }
+        };
+
+        addColumn('id', randomUUID());
+        addColumn('name', merchant.name);
+        addColumn('title', merchant.title);
+        addColumn('merchant_type', merchant.type);
+        addColumn('personality', merchant.personality);
+        addColumn('district', merchant.district);
+        addColumn('lat', merchant.lat);
+        addColumn('lng', merchant.lng);
+        addColumn('required_license', merchant.requiredLicense || 0);
+        addColumn('price_modifier', merchant.priceModifier);
+        addColumn('negotiation_difficulty', merchant.negotiationDifficulty);
+        addColumn('reputation_requirement', merchant.reputationRequirement);
+
+        if (hasImageFilenameColumn) {
+            addColumn('image_filename', merchant.imageFileName || null);
+        }
+
+        addColumn('is_active', 1);
+        addColumn('last_restocked', 'CURRENT_TIMESTAMP', { raw: true });
+
+        const sql = `INSERT INTO merchants (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`;
+        await DatabaseManager.run(sql, params);
     }
     
     logger.info(`${merchants.length}개의 상인 데이터 생성 완료`);

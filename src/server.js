@@ -6,6 +6,7 @@ const http = require('http');
 const DatabaseManager = require('./database/DatabaseManager');
 const logger = require('./config/logger');
 const metricsCollector = require('./utils/MetricsCollector');
+const { runMigrations } = require('./database/migrate');
 
 console.info('[ENV CHECK] JWT_SECRET exists:', !!process.env.JWT_SECRET);
 console.info('[ENV CHECK] JWT_REFRESH_SECRET exists:', !!process.env.JWT_REFRESH_SECRET);
@@ -53,6 +54,8 @@ async function startServer() {
         // 데이터베이스 연결 및 테이블 생성
         await DatabaseManager.initialize();
         logger.info('데이터베이스 초기화 완료');
+
+        await runMigrations({ reuseConnection: true });
 
         const { seedDatabase } = require('./database/seed');
 

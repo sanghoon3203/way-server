@@ -4,14 +4,22 @@ const logger = require('../config/logger');
 const fs = require('fs');
 const path = require('path');
 
-async function runMigrations() {
+async function runMigrations(options = {}) {
+    const { reuseConnection = false } = options;
     try {
-        logger.info('마이그레이션 시작...');
+        logger.info(reuseConnection ? '마이그레이션 시작 (기존 연결 재사용)...' : '마이그레이션 시작...');
 
-        await DatabaseManager.initialize();
+        if (!reuseConnection) {
+            await DatabaseManager.initialize();
+        }
 
         // 마이그레이션 폴더에서 SQL 파일들 찾기
         const migrationsDir = path.join(__dirname, 'migrations');
+        if (!fs.existsSync(migrationsDir)) {
+            logger.warn(`마이그레이션 디렉터리를 찾을 수 없습니다: ${migrationsDir}`);
+            return;
+        }
+
         const migrationFiles = fs.readdirSync(migrationsDir)
             .filter(file => file.endsWith('.sql'))
             .sort(); // 파일명으로 정렬하여 순서대로 실행
@@ -52,7 +60,9 @@ async function runMigrations() {
         logger.error('마이그레이션 실패:', error);
         process.exit(1);
     } finally {
-        await DatabaseManager.close();
+        if (!reuseConnection) {
+            await DatabaseManager.close();
+        }
     }
 }
 
