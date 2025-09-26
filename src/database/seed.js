@@ -89,8 +89,6 @@ function loadMerchantProfiles() {
 
             const nameKey = (npcData.name || '').replace(/\s+/g, '').toLowerCase();
 
-            const nameKey = (npcData.name || '').replace(/\s+/g, '').toLowerCase();
-
             profiles.set(slug, {
                 slug,
                 npcKey,
