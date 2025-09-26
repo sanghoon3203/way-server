@@ -5,6 +5,7 @@ const { randomUUID } = require('crypto');
 const DatabaseManager = require('../../database/DatabaseManager');
 const { authenticateToken } = require('../../middleware/auth');
 const logger = require('../../config/logger');
+const merchantDialogueLibrary = require('../../constants/merchantDialogues');
 
 const router = express.Router();
 
@@ -297,7 +298,16 @@ router.get('/:merchantId/dialogues', async (req, res) => {
 
         dialogueQuery += ' ORDER BY trigger_type, dialogue_order, created_at';
 
-        const rows = await DatabaseManager.all(dialogueQuery, params);
+        let rows = [];
+        try {
+            rows = await DatabaseManager.all(dialogueQuery, params);
+        } catch (dbError) {
+            if (dbError.message && dbError.message.includes('no such table')) {
+                logger.warn('merchant_dialogues 테이블이 존재하지 않습니다. 마이그레이션을 실행해주세요.', { merchantId });
+            } else {
+                throw dbError;
+            }
+        }
 
         const dialogueBuckets = initializeDialogueBuckets();
         let latestUpdatedAt = 0;
@@ -611,29 +621,41 @@ function initializeDialogueBuckets() {
 
 function generateFallbackDialogues(merchant) {
     const displayName = merchant?.name || '상인';
+    const normalizedName = displayName.replace(/\s+/g, '').toLowerCase();
     const type = (merchant?.merchant_type || '').toLowerCase();
     const personality = (merchant?.personality || '').toLowerCase();
+
+    if (merchantDialogueLibrary[normalizedName]) {
+        return merchantDialogueLibrary[normalizedName];
+    }
 
     const fallback = {
         greeting: [
             `${displayName}의 가게에 오신 것을 환영합니다!`,
-            '오늘도 흥미로운 물건들이 많이 들어왔어요.'
+            '오늘도 흥미로운 물건들이 많이 들어왔어요.',
+            '편하게 둘러보세요. 마음에 드는 게 있다면 말씀만 주세요.',
+            '좋은 손님을 만나는 날은 언제나 즐겁답니다.'
         ],
         trading: [
             '상품을 살펴보고 마음에 드는 것이 있으면 말씀해주세요.',
-            '흥정을 하고 싶다면 언제든지 도전해 보세요!'
+            '흥정을 하고 싶다면 언제든지 도전해 보세요.',
+            '이건 이번 주의 인기 상품이에요.',
+            '필요하신 게 있으면 기꺼이 도와드릴게요.'
         ],
         goodbye: [
             '언제든지 다시 들러주세요.',
-            '안전한 여정 되시길 바랍니다.'
+            '안전한 여정 되시길 바랍니다.',
+            '다음에 오시면 더 좋은 소식을 준비해 둘게요.'
         ],
         relationship: [
             '자주 찾아와 주셔서 정말 감사해요.',
-            '믿음이 쌓일수록 더 좋은 거래를 준비할게요.'
+            '믿음이 쌓일수록 더 좋은 거래를 준비할게요.',
+            '당신과의 거래는 늘 즐겁습니다.'
         ],
         special: [
             '특별한 손님에게만 보여드리는 물건이 있어요.',
-            '오늘만 공개하는 비밀 상품을 보고 가세요.'
+            '오늘만 공개하는 비밀 상품을 보고 가세요.',
+            '숨겨 둔 보물도 마음만 먹으면 보여드릴 수 있답니다.'
         ]
     };
 
