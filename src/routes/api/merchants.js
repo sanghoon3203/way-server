@@ -1,6 +1,7 @@
 // 📁 src/routes/api/merchants.js - 상인 관련 API 라우트
 const express = require('express');
 const { query, validationResult } = require('express-validator');
+const { randomUUID } = require('crypto');
 const DatabaseManager = require('../../database/DatabaseManager');
 const { authenticateToken } = require('../../middleware/auth');
 const logger = require('../../config/logger');
@@ -105,7 +106,9 @@ router.get('/nearby', [
                     priceModifier: merchant.price_modifier,
                     negotiationDifficulty: merchant.negotiation_difficulty,
                     inventoryCount: merchant.inventory_count,
-                    lastRestocked: merchant.last_restocked
+                    lastRestocked: merchant.last_restocked,
+                    imageFileName: merchant.image_filename,
+                    imagePath: merchant.image_filename ? `/public/merchants/${merchant.image_filename}` : null
                 };
             })
             .filter(merchant => merchant.distance <= radius)
@@ -205,6 +208,8 @@ router.get('/:merchantId', async (req, res) => {
                 priceModifier: merchant.price_modifier,
                 negotiationDifficulty: merchant.negotiation_difficulty,
                 lastRestocked: merchant.last_restocked,
+                imageFileName: merchant.image_filename,
+                imagePath: merchant.image_filename ? `/public/merchants/${merchant.image_filename}` : null,
                 
                 // 선호도 정보
                 preferredCategories,
@@ -251,6 +256,105 @@ router.get('/:merchantId', async (req, res) => {
         res.status(500).json({
             success: false,
             error: '서버 오류가 발생했습니다'
+        });
+    }
+});
+
+/**
+ * 상인 대화 데이터 조회
+ * GET /api/merchants/:merchantId/dialogues
+ */
+router.get('/:merchantId/dialogues', async (req, res) => {
+    try {
+        const { merchantId } = req.params;
+        const { triggerType } = req.query;
+        const playerId = req.user?.playerId || null;
+
+        const merchant = await DatabaseManager.get(`
+            SELECT id, name, merchant_type, personality
+            FROM merchants
+            WHERE id = ? AND is_active = 1
+        `, [merchantId]);
+
+        if (!merchant) {
+            return res.status(404).json({
+                success: false,
+                error: '상인을 찾을 수 없습니다'
+            });
+        }
+
+        const params = [merchantId];
+        let dialogueQuery = `
+            SELECT id, trigger_type, dialogue_text, dialogue_order, emotion, updated_at
+            FROM merchant_dialogues
+            WHERE merchant_id = ? AND is_active = 1
+        `;
+
+        if (triggerType) {
+            dialogueQuery += ' AND trigger_type = ?';
+            params.push(triggerType);
+        }
+
+        dialogueQuery += ' ORDER BY trigger_type, dialogue_order, created_at';
+
+        const rows = await DatabaseManager.all(dialogueQuery, params);
+
+        const dialogueBuckets = initializeDialogueBuckets();
+        let latestUpdatedAt = 0;
+
+        for (const row of rows) {
+            const category = mapTriggerToCategory(row.trigger_type);
+            if (!dialogueBuckets[category]) {
+                dialogueBuckets[category] = [];
+            }
+
+            dialogueBuckets[category].push(row.dialogue_text);
+
+            if (row.updated_at) {
+                const updatedTime = new Date(row.updated_at).getTime();
+                if (!Number.isNaN(updatedTime)) {
+                    latestUpdatedAt = Math.max(latestUpdatedAt, updatedTime);
+                }
+            }
+        }
+
+        const fallbackDialogues = generateFallbackDialogues(merchant);
+        for (const category of Object.keys(dialogueBuckets)) {
+            if (!dialogueBuckets[category] || dialogueBuckets[category].length === 0) {
+                dialogueBuckets[category] = fallbackDialogues[category] || [];
+            }
+        }
+
+        const responsePayload = {
+            merchantId: merchant.id,
+            merchantName: merchant.name,
+            personality: merchant.personality || 'neutral',
+            dialogues: dialogueBuckets,
+            lastUpdated: latestUpdatedAt ? new Date(latestUpdatedAt).toISOString() : new Date().toISOString()
+        };
+
+        if (playerId) {
+            try {
+                await DatabaseManager.run(`
+                    INSERT INTO merchant_dialogue_logs (
+                        id, player_id, merchant_id, interaction_type, message_text, merchant_emotion
+                    ) VALUES (?, ?, ?, 'load_dialogues', NULL, NULL)
+                `, [randomUUID(), playerId, merchantId]);
+            } catch (logError) {
+                logger.warn('상인 대화 로그 기록 실패', { merchantId, playerId, error: logError.message });
+            }
+        }
+
+        return res.json({
+            success: true,
+            data: responsePayload
+        });
+
+    } catch (error) {
+        logger.error('상인 대화 조회 실패:', error);
+        return res.status(500).json({
+            success: false,
+            error: '상인 대화를 불러오는 중 오류가 발생했습니다'
         });
     }
 });
@@ -435,7 +539,9 @@ router.get('/', async (req, res) => {
                 priceModifier: merchant.price_modifier,
                 negotiationDifficulty: merchant.negotiation_difficulty,
                 inventoryCount: merchant.inventory_count,
-                lastRestocked: merchant.last_restocked
+                lastRestocked: merchant.last_restocked,
+                imageFileName: merchant.image_filename,
+                imagePath: merchant.image_filename ? `/public/merchants/${merchant.image_filename}` : null
             });
             
             return acc;
@@ -467,3 +573,93 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
+function mapTriggerToCategory(triggerType = '') {
+    const normalized = triggerType.toLowerCase();
+
+    if (['greeting', 'hello', 'welcome', 'intro'].includes(normalized)) {
+        return 'greeting';
+    }
+
+    if (['trade_start', 'trade', 'deal', 'negotiation', 'sales', 'offer'].includes(normalized)) {
+        return 'trading';
+    }
+
+    if (['trade_end', 'farewell', 'goodbye', 'close', 'thanks', 'bye'].includes(normalized)) {
+        return 'goodbye';
+    }
+
+    if (['relationship', 'trust', 'friendship', 'loyalty', 'affection'].includes(normalized)) {
+        return 'relationship';
+    }
+
+    if (['special_event', 'event', 'secret', 'story', 'special'].includes(normalized)) {
+        return 'special';
+    }
+
+    return 'special';
+}
+
+function initializeDialogueBuckets() {
+    return {
+        greeting: [],
+        trading: [],
+        goodbye: [],
+        relationship: [],
+        special: []
+    };
+}
+
+function generateFallbackDialogues(merchant) {
+    const displayName = merchant?.name || '상인';
+    const type = (merchant?.merchant_type || '').toLowerCase();
+    const personality = (merchant?.personality || '').toLowerCase();
+
+    const fallback = {
+        greeting: [
+            `${displayName}의 가게에 오신 것을 환영합니다!`,
+            '오늘도 흥미로운 물건들이 많이 들어왔어요.'
+        ],
+        trading: [
+            '상품을 살펴보고 마음에 드는 것이 있으면 말씀해주세요.',
+            '흥정을 하고 싶다면 언제든지 도전해 보세요!'
+        ],
+        goodbye: [
+            '언제든지 다시 들러주세요.',
+            '안전한 여정 되시길 바랍니다.'
+        ],
+        relationship: [
+            '자주 찾아와 주셔서 정말 감사해요.',
+            '믿음이 쌓일수록 더 좋은 거래를 준비할게요.'
+        ],
+        special: [
+            '특별한 손님에게만 보여드리는 물건이 있어요.',
+            '오늘만 공개하는 비밀 상품을 보고 가세요.'
+        ]
+    };
+
+    if (type.includes('fashion')) {
+        fallback.trading.push('최신 스타일의 의상을 직접 골라보세요. 어울리는 코디도 추천해 드릴게요.');
+    }
+
+    if (type.includes('technology') || type.includes('tech')) {
+        fallback.trading.push('최첨단 장비들이 준비되어 있습니다. 기능 설명이 필요하시면 말씀 주세요.');
+    }
+
+    if (type.includes('fantasy') || type.includes('temporal') || type.includes('mystic')) {
+        fallback.special.push('시간과 공간을 넘어온 희귀한 아이템이 있어요. 용기가 있다면 구경해볼래요?');
+    }
+
+    if (type.includes('beverages') || type.includes('food')) {
+        fallback.trading.push('막 도착한 신선한 재료들이 있어요. 향을 한번 맡아보세요.');
+    }
+
+    if (personality.includes('cold') || personality.includes('strict')) {
+        fallback.greeting.push('필요한 물건이 있으면 간단하게 말해주세요. 효율이 가장 중요하니까요.');
+        fallback.goodbye.push('다음에도 실속 있는 거래를 기대하겠습니다.');
+    } else if (personality.includes('cheerful') || personality.includes('friendly')) {
+        fallback.greeting.push('오셨군요! 오늘도 즐거운 거래가 되길 바라요.');
+        fallback.goodbye.push('또 봐요! 좋은 일만 가득했으면 좋겠어요.');
+    }
+
+    return fallback;
+}

@@ -87,7 +87,7 @@ module.exports = (socket, io) => {
 
                 // 새 구역의 근처 상인 정보 조회
                 const nearbyMerchants = await DatabaseManager.all(`
-                    SELECT id, name, merchant_type, lat, lng, is_active
+                    SELECT id, name, merchant_type, lat, lng, is_active, image_filename
                     FROM merchants 
                     WHERE district = ? AND is_active = 1
                 `, [newDistrict]);
@@ -101,7 +101,9 @@ module.exports = (socket, io) => {
                         name: m.name,
                         type: m.merchant_type,
                         location: { lat: m.lat, lng: m.lng },
-                        distance: Math.round(calculateDistance(lat, lng, m.lat, m.lng))
+                        distance: Math.round(calculateDistance(lat, lng, m.lat, m.lng)),
+                        imageFileName: m.image_filename,
+                        imagePath: m.image_filename ? `/public/merchants/${m.image_filename}` : null
                     })).filter(m => m.distance <= 1000) // 1km 이내만
                 });
 
