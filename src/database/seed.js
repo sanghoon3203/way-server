@@ -727,7 +727,7 @@ async function seedQuestTemplates() {
             objectives: JSON.stringify([
                 { type: 'trade', target: 'any_merchant', count: 1, description: '상인과 거래하기' }
             ]),
-            rewards: JSON.stringify({ money: 5000, exp: 100, trust: 10 }),
+            rewards: JSON.stringify({ money: 5000, experience: 100, trustPoints: 10, items: [] }),
             auto_complete: true,
             repeatable: false,
             time_limit: null,
@@ -746,7 +746,7 @@ async function seedQuestTemplates() {
             objectives: JSON.stringify([
                 { type: 'collect_categories', count: 5, description: '5개 카테고리 아이템 수집' }
             ]),
-            rewards: JSON.stringify({ money: 15000, exp: 250, trust: 25 }),
+            rewards: JSON.stringify({ money: 15000, experience: 250, trustPoints: 25, items: [] }),
             auto_complete: false,
             repeatable: false,
             time_limit: null,
@@ -765,7 +765,7 @@ async function seedQuestTemplates() {
             objectives: JSON.stringify([
                 { type: 'visit_districts', count: 3, description: '3개 지역 방문하여 거래' }
             ]),
-            rewards: JSON.stringify({ money: 20000, exp: 300, trust: 30 }),
+            rewards: JSON.stringify({ money: 20000, experience: 300, trustPoints: 30, items: [] }),
             auto_complete: false,
             repeatable: false,
             time_limit: null,
@@ -784,7 +784,7 @@ async function seedQuestTemplates() {
             objectives: JSON.stringify([
                 { type: 'total_profit', amount: 500000, description: '총 수익 50만원 달성' }
             ]),
-            rewards: JSON.stringify({ money: 50000, exp: 500, trust: 100 }),
+            rewards: JSON.stringify({ money: 50000, experience: 500, trustPoints: 100, items: [] }),
             auto_complete: false,
             repeatable: false,
             time_limit: null,
@@ -803,7 +803,7 @@ async function seedQuestTemplates() {
             objectives: JSON.stringify([
                 { type: 'daily_trades', count: 10, description: '하루 10회 거래' }
             ]),
-            rewards: JSON.stringify({ money: 25000, exp: 200, trust: 50 }),
+            rewards: JSON.stringify({ money: 25000, experience: 200, trustPoints: 50, items: [] }),
             auto_complete: false,
             repeatable: true,
             time_limit: 86400,
@@ -822,7 +822,7 @@ async function seedQuestTemplates() {
             objectives: JSON.stringify([
                 { type: 'weekly_trades', count: 50, description: '주간 50회 거래' }
             ]),
-            rewards: JSON.stringify({ money: 150000, exp: 1200, trust: 250 }),
+            rewards: JSON.stringify({ money: 150000, experience: 1200, trustPoints: 250, items: [] }),
             auto_complete: false,
             repeatable: true,
             time_limit: 604800,
@@ -841,7 +841,7 @@ async function seedQuestTemplates() {
             objectives: JSON.stringify([
                 { type: 'category_trades', category: 'antiques', count: 10, description: '골동품 10개 거래' }
             ]),
-            rewards: JSON.stringify({ money: 100000, exp: 800, trust: 200 }),
+            rewards: JSON.stringify({ money: 100000, experience: 800, trustPoints: 200, items: [] }),
             auto_complete: false,
             repeatable: false,
             time_limit: null,
@@ -860,7 +860,7 @@ async function seedQuestTemplates() {
             objectives: JSON.stringify([
                 { type: 'all_categories', count: 6, description: '모든 카테고리 거래 완성' }
             ]),
-            rewards: JSON.stringify({ money: 200000, exp: 1000, trust: 300 }),
+            rewards: JSON.stringify({ money: 200000, experience: 1000, trustPoints: 300, items: [] }),
             auto_complete: false,
             repeatable: false,
             time_limit: null,

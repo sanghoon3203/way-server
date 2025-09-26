@@ -4,9 +4,28 @@ const { authenticateToken } = require('../../middleware/auth');
 const DatabaseManager = require('../../database/DatabaseManager');
 const logger = require('../../config/logger');
 const { randomUUID } = require('crypto');
+const { getQuestOverview } = require('../../services/game/QuestPlayerService');
 
 const router = express.Router();
 router.use(authenticateToken);
+
+/**
+ * 전체 퀘스트 목록 조회 (게임 클라이언트 공용)
+ * GET /api/quests
+ */
+router.get('/', async (req, res) => {
+    try {
+        const data = await getQuestOverview(req.user.playerId);
+        res.json({ success: true, data });
+    } catch (error) {
+        logger.error('퀘스트 목록 조회 실패:', error);
+        res.status(error.status || 500).json({
+            success: false,
+            error: error.code || 'INTERNAL_SERVER_ERROR',
+            message: error.message || '서버 오류가 발생했습니다'
+        });
+    }
+});
 
 /**
  * 플레이어가 수행 가능한 퀘스트 조회
@@ -290,94 +309,101 @@ router.post('/:questId/abandon', async (req, res) => {
  * 퀘스트 진행 상황 업데이트
  * POST /api/quests/progress
  */
-router.post('/progress', async (req, res) => {
-    try {
-        const playerId = req.user.playerId;
-        const { eventType, eventData } = req.body;
-        
-        // 진행 중인 퀘스트들 조회
-        const activeQuests = await DatabaseManager.all(`
-            SELECT 
-                pq.*,
-                qt.objectives,
-                qt.rewards,
-                qt.auto_complete
-            FROM player_quests pq
-            JOIN quest_templates qt ON pq.quest_template_id = qt.id
-            WHERE pq.player_id = ? AND pq.status = 'active'
-        `, [playerId]);
-        
-        const updatedQuests = [];
-        
-        for (const quest of activeQuests) {
-            const objectives = JSON.parse(quest.objectives || '[]');
-            const currentProgress = JSON.parse(quest.progress || '{}');
-            
-            let hasProgress = false;
-            
-            // 각 목표 확인 및 진행도 업데이트
+async function progressHandler(playerId, eventType, eventData = {}) {
+    if (!eventType) {
+        return { updatedQuests: [], message: '이벤트 유형이 제공되지 않았습니다.' };
+    }
+
+    const activeQuests = await DatabaseManager.all(`
+        SELECT 
+            pq.*,
+            qt.objectives,
+            qt.rewards,
+            qt.auto_complete
+        FROM player_quests pq
+        JOIN quest_templates qt ON pq.quest_template_id = qt.id
+        WHERE pq.player_id = ? AND pq.status = 'active'
+    `, [playerId]);
+
+    const updatedQuests = [];
+
+    for (const quest of activeQuests) {
+        const objectives = JSON.parse(quest.objectives || '[]');
+        const currentProgress = JSON.parse(quest.progress || '{}');
+
+        let hasProgress = false;
+
+        for (let i = 0; i < objectives.length; i++) {
+            const objective = objectives[i];
+            const progressKey = `objective_${i}`;
+
+            if (!currentProgress[progressKey]) {
+                currentProgress[progressKey] = 0;
+            }
+
+            if (objective.type !== eventType) {
+                continue;
+            }
+
+            let increment = 1;
+
+            if (objective.type === 'total_profit' && eventData.profit) {
+                increment = Number(eventData.profit) || 0;
+            }
+
+            if (objective.category && eventData.category &&
+                objective.category !== eventData.category) {
+                continue;
+            }
+
+            currentProgress[progressKey] += increment;
+            hasProgress = true;
+        }
+
+        if (hasProgress) {
+            await DatabaseManager.run(`
+                UPDATE player_quests SET progress = ? WHERE id = ?
+            `, [JSON.stringify(currentProgress), quest.id]);
+
+            let isCompleted = true;
             for (let i = 0; i < objectives.length; i++) {
                 const objective = objectives[i];
                 const progressKey = `objective_${i}`;
-                
-                if (!currentProgress[progressKey]) {
-                    currentProgress[progressKey] = 0;
-                }
-                
-                // 이벤트 타입에 따른 진행도 업데이트
-                if (objective.type === eventType) {
-                    let increment = 1;
-                    
-                    if (objective.type === 'total_profit' && eventData.profit) {
-                        increment = eventData.profit;
-                    }
-                    
-                    if (objective.category && eventData.category && 
-                        objective.category !== eventData.category) {
-                        continue;
-                    }
-                    
-                    currentProgress[progressKey] += increment;
-                    hasProgress = true;
+                const target = objective.count || objective.amount || 1;
+
+                if ((currentProgress[progressKey] || 0) < target) {
+                    isCompleted = false;
+                    break;
                 }
             }
-            
-            if (hasProgress) {
-                // 진행도 업데이트
-                await DatabaseManager.run(`
-                    UPDATE player_quests SET progress = ? WHERE id = ?
-                `, [JSON.stringify(currentProgress), quest.id]);
-                
-                // 자동 완료 확인
-                let isCompleted = true;
-                for (let i = 0; i < objectives.length; i++) {
-                    const objective = objectives[i];
-                    const progressKey = `objective_${i}`;
-                    const target = objective.count || objective.amount || 1;
-                    
-                    if (currentProgress[progressKey] < target) {
-                        isCompleted = false;
-                        break;
-                    }
-                }
-                
-                if (isCompleted && quest.auto_complete) {
-                    await completeQuest(quest.id, playerId);
-                    updatedQuests.push({ id: quest.id, status: 'completed' });
-                } else {
-                    updatedQuests.push({ id: quest.id, status: 'updated', progress: currentProgress });
-                }
+
+            if (isCompleted && quest.auto_complete) {
+                await completeQuest(quest.id, playerId);
+                updatedQuests.push({ id: quest.id, status: 'completed' });
+            } else {
+                updatedQuests.push({ id: quest.id, status: 'updated', progress: currentProgress });
             }
         }
-        
+    }
+
+    return {
+        updatedQuests,
+        message: '퀘스트 진행도가 업데이트되었습니다'
+    };
+}
+
+router.post('/progress', async (req, res) => {
+    try {
+        const playerId = req.user.playerId;
+        const { eventType, eventData = {} } = req.body;
+
+        const result = await progressHandler(playerId, eventType, eventData || {});
+
         res.json({
             success: true,
-            data: {
-                updatedQuests,
-                message: '퀘스트 진행도가 업데이트되었습니다'
-            }
+            data: result
         });
-        
+
     } catch (error) {
         logger.error('퀘스트 진행도 업데이트 실패:', error);
         res.status(500).json({
@@ -404,8 +430,18 @@ async function completeQuest(questId, playerId) {
         
         if (!questInfo) return;
         
-        const rewards = JSON.parse(questInfo.rewards || '{}');
-        
+        let rewards = {};
+        try {
+            rewards = JSON.parse(questInfo.rewards || '{}');
+        } catch (error) {
+            logger.warn('퀘스트 보상 파싱 실패', { questId, error: error.message });
+            rewards = {};
+        }
+
+        const money = Number(rewards.money ?? 0);
+        const experience = Number(rewards.experience ?? rewards.exp ?? 0);
+        const trustPoints = Number(rewards.trustPoints ?? rewards.trust ?? 0);
+
         // 퀘스트 완료 처리
         await DatabaseManager.run(`
             UPDATE player_quests 
@@ -414,22 +450,22 @@ async function completeQuest(questId, playerId) {
         `, [questId]);
         
         // 보상 지급
-        if (rewards.money) {
+        if (money) {
             await DatabaseManager.run(`
                 UPDATE players SET money = money + ? WHERE id = ?
-            `, [rewards.money, playerId]);
+            `, [money, playerId]);
         }
         
-        if (rewards.exp) {
+        if (experience) {
             await DatabaseManager.run(`
                 UPDATE players SET experience = experience + ? WHERE id = ?
-            `, [rewards.exp, playerId]);
+            `, [experience, playerId]);
         }
         
-        if (rewards.trust) {
+        if (trustPoints) {
             await DatabaseManager.run(`
                 UPDATE players SET trust_points = trust_points + ? WHERE id = ?
-            `, [rewards.trust, playerId]);
+            `, [trustPoints, playerId]);
         }
         
         logger.info(`퀘스트 완료: 플레이어 ${playerId}, 퀘스트 ${questId}`);
@@ -440,3 +476,5 @@ async function completeQuest(questId, playerId) {
 }
 
 module.exports = router;
+module.exports.progressHandler = progressHandler;
+module.exports.completeQuest = completeQuest;

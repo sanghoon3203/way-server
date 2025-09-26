@@ -15,11 +15,12 @@ class AdminExtensions {
                 type TEXT NOT NULL, -- kill, collect, trade, visit, talk
                 level_requirement INTEGER DEFAULT 1,
                 required_license INTEGER DEFAULT 0,
-                prerequisites TEXT, -- JSON array of prerequisite quest IDs
+                prerequisites TEXT DEFAULT '[]', -- JSON array of prerequisite quest IDs
                 objectives TEXT NOT NULL, -- JSON array of objectives
-                rewards TEXT, -- JSON object with rewards (money, items, exp, etc)
+                rewards TEXT DEFAULT '{}', -- JSON object with rewards (money, items, exp, etc)
                 auto_complete BOOLEAN DEFAULT FALSE,
                 repeatable BOOLEAN DEFAULT FALSE,
+                cooldown_hours INTEGER DEFAULT 0,
                 time_limit INTEGER, -- seconds, NULL for no limit
                 is_active BOOLEAN DEFAULT TRUE,
                 sort_order INTEGER DEFAULT 0,
@@ -33,10 +34,12 @@ class AdminExtensions {
                 player_id TEXT NOT NULL,
                 quest_template_id TEXT NOT NULL,
                 status TEXT DEFAULT 'active', -- active, completed, failed, abandoned
-                progress TEXT, -- JSON object with progress data
-                started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                progress TEXT DEFAULT '{}', -- JSON object with progress data
+                accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 completed_at DATETIME NULL,
                 expires_at DATETIME NULL,
+                reward_claimed BOOLEAN DEFAULT 0,
+                reward_claimed_at DATETIME NULL,
                 FOREIGN KEY (player_id) REFERENCES players(id),
                 FOREIGN KEY (quest_template_id) REFERENCES quest_templates(id),
                 UNIQUE(player_id, quest_template_id)
@@ -56,6 +59,21 @@ class AdminExtensions {
                 UNIQUE(player_id, quest_template_id)
             )`
         ];
+    }
+
+    static async ensureColumn(db, table, columnName, columnDefinition) {
+        try {
+            const columns = await db.all(`PRAGMA table_info(${table})`);
+            const exists = columns.some(column => column.name === columnName);
+
+            if (!exists) {
+                await db.run(`ALTER TABLE ${table} ADD COLUMN ${columnDefinition}`);
+                logger.info(`컬럼 추가: ${table}.${columnName}`);
+            }
+        } catch (error) {
+            logger.error(`컬럼 확인/추가 실패 (${table}.${columnName}):`, error);
+            throw error;
+        }
     }
 
     // 확장된 스킬 시스템 테이블들
@@ -292,6 +310,24 @@ class AdminExtensions {
                 logger.error('테이블 생성 실패:', { query: tableQuery.substring(0, 50) + '...', error });
                 throw error;
             }
+        }
+
+        await this.ensureColumn(db, 'quest_templates', 'cooldown_hours', 'cooldown_hours INTEGER DEFAULT 0');
+        await this.ensureColumn(db, 'quest_templates', 'prerequisites', "prerequisites TEXT DEFAULT '[]'");
+        await this.ensureColumn(db, 'quest_templates', 'rewards', "rewards TEXT DEFAULT '{}'");
+
+        await this.ensureColumn(db, 'player_quests', 'accepted_at', 'accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+        await this.ensureColumn(db, 'player_quests', 'reward_claimed', 'reward_claimed BOOLEAN DEFAULT 0');
+        await this.ensureColumn(db, 'player_quests', 'reward_claimed_at', 'reward_claimed_at DATETIME NULL');
+
+        try {
+            await db.run("UPDATE player_quests SET progress = '{}' WHERE progress IS NULL OR TRIM(progress) = ''");
+            await db.run("UPDATE quest_templates SET cooldown_hours = 0 WHERE cooldown_hours IS NULL");
+            await db.run("UPDATE quest_templates SET rewards = '{}' WHERE rewards IS NULL OR TRIM(rewards) = ''");
+            await db.run("UPDATE quest_templates SET prerequisites = '[]' WHERE prerequisites IS NULL OR TRIM(prerequisites) = ''");
+            await db.run("UPDATE player_quests SET reward_claimed = 0 WHERE reward_claimed IS NULL");
+        } catch (error) {
+            logger.warn('player_quests progress 기본값 보정 실패:', error);
         }
 
         // 인덱스 생성

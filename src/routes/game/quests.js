@@ -4,6 +4,7 @@ const { authenticateToken } = require('../../middleware/auth');
 const DatabaseManager = require('../../database/DatabaseManager');
 const logger = require('../../config/logger');
 const { randomUUID } = require('crypto');
+const { getQuestOverview } = require('../../services/game/QuestPlayerService');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -14,197 +15,16 @@ router.use(authenticateToken);
  */
 router.get('/', async (req, res) => {
     try {
-        const playerId = req.user.playerId;
-
-        // 플레이어 정보 조회
-        const player = await DatabaseManager.get(`
-            SELECT level, current_license, reputation FROM players WHERE id = ?
-        `, [playerId]);
-
-        if (!player) {
-            return res.status(404).json({
-                success: false,
-                error: { code: 'PLAYER_NOT_FOUND', message: '플레이어를 찾을 수 없습니다' }
-            });
-        }
-
-        // 현재 진행 중인 퀘스트 조회
-        const activeQuests = await DatabaseManager.all(`
-            SELECT
-                pq.*,
-                qt.name as title,
-                qt.description,
-                qt.category,
-                qt.type as questType,
-                qt.objectives,
-                qt.rewards,
-                qt.time_limit,
-                qt.level_requirement as minLevel,
-                qt.required_license as requiredLicense
-            FROM player_quests pq
-            JOIN quest_templates qt ON pq.quest_template_id = qt.id
-            WHERE pq.player_id = ? AND pq.status = 'active'
-            ORDER BY pq.accepted_at ASC
-        `, [playerId]);
-
-        // 완료된 퀘스트 조회
-        const completedQuests = await DatabaseManager.all(`
-            SELECT
-                pq.*,
-                qt.name as title,
-                qt.description,
-                qt.category,
-                qt.type as questType,
-                qt.objectives,
-                qt.rewards
-            FROM player_quests pq
-            JOIN quest_templates qt ON pq.quest_template_id = qt.id
-            WHERE pq.player_id = ? AND pq.status = 'completed'
-            ORDER BY pq.completed_at DESC
-            LIMIT 10
-        `, [playerId]);
-
-        // 수행 가능한 퀘스트 조회
-        const activeQuestIds = activeQuests.map(q => q.quest_template_id);
-        const completedQuestIds = completedQuests.map(q => q.quest_template_id);
-
-        const availableQuestTemplates = await DatabaseManager.all(`
-            SELECT * FROM quest_templates
-            WHERE is_active = 1
-            AND level_requirement <= ?
-            AND required_license <= ?
-            ORDER BY sort_order ASC, category, level_requirement
-        `, [player.level, player.current_license]);
-
-        const availableQuests = [];
-        for (const quest of availableQuestTemplates) {
-            // 이미 진행 중인 퀘스트는 제외
-            if (activeQuestIds.includes(quest.id)) continue;
-
-            // 반복 불가능한 퀘스트 중 이미 완료한 것은 제외
-            if (!quest.repeatable && completedQuestIds.includes(quest.id)) continue;
-
-            // 선행 조건 확인
-            let prerequisites = [];
-            try {
-                prerequisites = JSON.parse(quest.prerequisites || '[]');
-            } catch (e) {
-                prerequisites = [];
-            }
-
-            let canAccept = true;
-            for (const prereqId of prerequisites) {
-                if (!completedQuestIds.includes(prereqId)) {
-                    canAccept = false;
-                    break;
-                }
-            }
-
-            if (canAccept) {
-                availableQuests.push({
-                    id: quest.id,
-                    title: quest.name,
-                    description: quest.description,
-                    category: quest.category,
-                    questType: quest.type,
-                    maxProgress: quest.objectives ? JSON.parse(quest.objectives).length : 1,
-                    currentProgress: 0,
-                    rewards: JSON.parse(quest.rewards || '{}'),
-                    requirements: {
-                        minLevel: quest.level_requirement,
-                        requiredLicense: quest.required_license
-                    },
-                    isRepeatable: quest.repeatable,
-                    priority: quest.sort_order || 1,
-                    status: 'available'
-                });
-            }
-        }
-
-        // 진행 중인 퀘스트 포맷팅
-        const formattedActiveQuests = activeQuests.map(quest => {
-            const objectives = JSON.parse(quest.objectives || '[]');
-            const progress = JSON.parse(quest.progress || '{}');
-
-            let currentProgress = 0;
-            for (let i = 0; i < objectives.length; i++) {
-                const progressKey = `objective_${i}`;
-                if (progress[progressKey]) {
-                    currentProgress += progress[progressKey];
-                }
-            }
-
-            return {
-                id: quest.quest_template_id,
-                title: quest.title,
-                description: quest.description,
-                category: quest.category,
-                questType: quest.questType,
-                maxProgress: objectives.length,
-                currentProgress: Math.min(currentProgress, objectives.length),
-                rewards: JSON.parse(quest.rewards || '{}'),
-                requirements: {
-                    minLevel: quest.minLevel,
-                    requiredLicense: quest.requiredLicense
-                },
-                isRepeatable: false,
-                priority: 1,
-                status: 'active',
-                acceptedAt: quest.accepted_at,
-                expiresAt: quest.time_limit ?
-                    new Date(new Date(quest.accepted_at).getTime() + quest.time_limit * 1000).toISOString() : null,
-                rewardClaimed: false
-            };
-        });
-
-        // 완료된 퀘스트 포맷팅
-        const formattedCompletedQuests = completedQuests.map(quest => ({
-            id: quest.quest_template_id,
-            title: quest.title,
-            description: quest.description,
-            category: quest.category,
-            questType: quest.questType,
-            maxProgress: JSON.parse(quest.objectives || '[]').length,
-            currentProgress: JSON.parse(quest.objectives || '[]').length,
-            rewards: JSON.parse(quest.rewards || '{}'),
-            requirements: null,
-            isRepeatable: false,
-            priority: 1,
-            status: 'completed',
-            acceptedAt: quest.accepted_at,
-            completedAt: quest.completed_at,
-            expiresAt: null,
-            rewardClaimed: true
-        }));
-
-        // NetworkManager QuestListResponse 형태로 응답
-        res.json({
-            success: true,
-            data: {
-                playerId: playerId,
-                playerLevel: player.level,
-                playerLicense: player.current_license,
-                totalQuests: availableQuests.length + formattedActiveQuests.length + formattedCompletedQuests.length,
-                questsByStatus: {
-                    available: availableQuests,
-                    active: formattedActiveQuests,
-                    completed: formattedCompletedQuests,
-                    claimed: formattedCompletedQuests.filter(q => q.rewardClaimed)
-                },
-                summary: {
-                    available: availableQuests.length,
-                    active: formattedActiveQuests.length,
-                    completed: formattedCompletedQuests.length,
-                    claimed: formattedCompletedQuests.length
-                }
-            }
-        });
-
+        const data = await getQuestOverview(req.user.playerId);
+        res.json({ success: true, data });
     } catch (error) {
         logger.error('퀘스트 목록 조회 실패:', error);
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: { code: 'INTERNAL_SERVER_ERROR', message: '서버 오류가 발생했습니다' }
+            error: {
+                code: error.code || 'INTERNAL_SERVER_ERROR',
+                message: error.message || '서버 오류가 발생했습니다'
+            }
         });
     }
 });
@@ -324,27 +144,34 @@ router.post('/:questId/claim', async (req, res) => {
             });
         }
 
-        const rewards = JSON.parse(quest.rewards || '{}');
+        let rewards = {};
+        try {
+            rewards = JSON.parse(quest.rewards || '{}');
+        } catch (error) {
+            logger.warn('퀘스트 보상 파싱 실패', { questId, error: error.message });
+            rewards = {};
+        }
 
-        // 보상 지급
-        if (rewards.money) {
+        const money = Number(rewards.money ?? 0);
+        const experience = Number(rewards.experience ?? rewards.exp ?? 0);
+        const trustPoints = Number(rewards.trustPoints ?? rewards.trust ?? 0);
+
+        if (money) {
             await DatabaseManager.run(`
                 UPDATE players SET money = money + ? WHERE id = ?
-            `, [rewards.money, playerId]);
+            `, [money, playerId]);
         }
 
-        if (rewards.experience || rewards.exp) {
-            const exp = rewards.experience || rewards.exp;
+        if (experience) {
             await DatabaseManager.run(`
                 UPDATE players SET experience = experience + ? WHERE id = ?
-            `, [exp, playerId]);
+            `, [experience, playerId]);
         }
 
-        if (rewards.trustPoints || rewards.trust) {
-            const trust = rewards.trustPoints || rewards.trust;
+        if (trustPoints) {
             await DatabaseManager.run(`
                 UPDATE players SET trust_points = trust_points + ? WHERE id = ?
-            `, [trust, playerId]);
+            `, [trustPoints, playerId]);
         }
 
         // 보상 수령 표시
@@ -361,7 +188,12 @@ router.post('/:questId/claim', async (req, res) => {
             data: {
                 questId: questId,
                 title: quest.title,
-                rewards: rewards
+                rewards: {
+                    money,
+                    experience,
+                    trustPoints,
+                    items: Array.isArray(rewards.items) ? rewards.items : []
+                }
             },
             message: '퀘스트 보상을 받았습니다'
         });
