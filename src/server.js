@@ -54,12 +54,20 @@ async function startServer() {
         await DatabaseManager.initialize();
         logger.info('데이터베이스 초기화 완료');
 
-        // 환경변수로 시드 실행 제어
+        const { seedDatabase } = require('./database/seed');
+
+        const seededTables = await seedDatabase({ reuseConnection: true });
+        if (seededTables.length > 0) {
+            logger.info(`자동 시드 완료: ${seededTables.join(', ')}`);
+        } else {
+            logger.info('자동 시드: 기존 데이터가 존재하여 작업을 건너뜁니다.');
+        }
+
+        // 환경변수로 시드 실행 제어 (강제 리시드)
         if (process.env.RUN_SEED === 'true') {
-            logger.info('시드 데이터 실행 중...');
-            const { seedDatabase } = require('./database/seed');
-            await seedDatabase();
-            logger.info('시드 데이터 실행 완료');
+            logger.warn('RUN_SEED=true 감지: 기존 데이터 초기화 후 시드를 다시 실행합니다.');
+            const forcedTables = await seedDatabase({ reuseConnection: true, force: true });
+            logger.info(`강제 시드 실행 완료: ${forcedTables.join(', ')}`);
         }
         
         // 서버 시작

@@ -3,40 +3,84 @@ const DatabaseManager = require('./DatabaseManager');
 const { randomUUID } = require('crypto');
 const logger = require('../config/logger');
 
-async function seedDatabase() {
+async function seedDatabase(options = {}) {
+    const { reuseConnection = false, force = false } = options;
+    const seededTables = [];
+
     try {
-        logger.info('샘플 데이터 생성 시작...');
-        
-        await DatabaseManager.initialize();
-        
-        // 아이템 템플릿 추가
-        await seedItemTemplates();
-        
-        // 상인 추가
-        await seedMerchants();
-        
-        // 상인 인벤토리 추가
-        await seedMerchantInventory();
-        
-        // 퀘스트 템플릿 추가
-        await seedQuestTemplates();
-        
-        // 스킬 템플릿 추가
-        await seedSkillTemplates();
-        
-        // 성취 시스템 시드 데이터
-        await seedAchievements();
-        
-        // 테스트 플레이어 추가
-        await seedTestPlayers();
-        
-        logger.info('샘플 데이터 생성 완료!');
-        
+        logger.info('샘플 데이터 생성 준비 중...');
+
+        if (!reuseConnection) {
+            await DatabaseManager.initialize();
+        }
+
+        if (force) {
+            logger.warn('force 옵션이 활성화되어 기존 시드 데이터를 초기화합니다.');
+            await clearSeedTables();
+        }
+
+        await seedIfNeeded('item_templates', seedItemTemplates, '아이템 템플릿', { force, seededTables });
+        await seedIfNeeded('merchants', seedMerchants, '상인', { force, seededTables });
+        await seedIfNeeded('merchant_inventory', seedMerchantInventory, '상인 인벤토리', { force, seededTables });
+        await seedIfNeeded('quest_templates', seedQuestTemplates, '퀘스트 템플릿', { force, seededTables });
+        await seedIfNeeded('skill_templates', seedSkillTemplates, '스킬 템플릿', { force, seededTables });
+        await seedIfNeeded('achievement_templates', seedAchievements, '성취 템플릿', { force, seededTables });
+        await seedIfNeeded('users', seedTestPlayers, '테스트 플레이어', { force, seededTables });
+
+        if (seededTables.length > 0) {
+            logger.info(`샘플 데이터 생성 완료! (새로 채워진 테이블: ${seededTables.join(', ')})`);
+        } else {
+            logger.info('샘플 데이터가 이미 존재하여 자동 시드를 건너뛰었습니다.');
+        }
+
+        return seededTables;
+
     } catch (error) {
         logger.error('샘플 데이터 생성 실패:', error);
+        throw error;
     } finally {
-        await DatabaseManager.close();
+        if (!reuseConnection) {
+            await DatabaseManager.close();
+        }
     }
+}
+
+async function seedIfNeeded(tableName, seedFn, label, { force, seededTables }) {
+    if (force || await isTableEmpty(tableName)) {
+        await seedFn();
+        seededTables.push(label);
+    } else {
+        logger.info(`${label} 데이터가 이미 존재합니다. 시드를 건너뜁니다.`);
+    }
+}
+
+async function isTableEmpty(tableName) {
+    const row = await DatabaseManager.get(`SELECT COUNT(*) as count FROM ${tableName}`);
+    return !row || row.count === 0;
+}
+
+async function clearSeedTables() {
+    const tablesInDeleteOrder = [
+        'merchant_inventory',
+        'merchant_preferences',
+        'merchant_relationships',
+        'trade_records',
+        'player_items',
+        'player_sessions',
+        'players',
+        'users',
+        'merchants',
+        'item_templates',
+        'quest_templates',
+        'skill_templates',
+        'achievement_templates'
+    ];
+
+    for (const table of tablesInDeleteOrder) {
+        await DatabaseManager.run(`DELETE FROM ${table}`);
+    }
+
+    logger.info('기존 시드 테이블 데이터를 초기화했습니다.');
 }
 
 async function seedItemTemplates() {
