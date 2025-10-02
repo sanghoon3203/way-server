@@ -109,7 +109,12 @@ router.get('/nearby', [
                     inventoryCount: merchant.inventory_count,
                     lastRestocked: merchant.last_restocked,
                     imageFileName: merchant.image_filename,
-                    imagePath: merchant.image_filename ? `/public/merchants/${merchant.image_filename}` : null
+                    imagePath: merchant.image_filename ? `/public/merchants/${merchant.image_filename}` : null,
+
+                    // 🆕 Story system fields
+                    storyRole: merchant.story_role,
+                    hasActiveStory: merchant.has_active_story === 1,
+                    initialStoryNode: merchant.initial_story_node
                 };
             })
             .filter(merchant => merchant.distance <= radius)
@@ -211,11 +216,16 @@ router.get('/:merchantId', async (req, res) => {
                 lastRestocked: merchant.last_restocked,
                 imageFileName: merchant.image_filename,
                 imagePath: merchant.image_filename ? `/public/merchants/${merchant.image_filename}` : null,
-                
+
+                // 🆕 Story system fields
+                storyRole: merchant.story_role,
+                hasActiveStory: merchant.has_active_story === 1,
+                initialStoryNode: merchant.initial_story_node,
+
                 // 선호도 정보
                 preferredCategories,
                 dislikedCategories,
-                
+
                 // 인벤토리
                 inventory: inventory.map(item => ({
                     id: item.id,
@@ -575,6 +585,181 @@ router.get('/', async (req, res) => {
 
     } catch (error) {
         logger.error('상인 목록 조회 실패:', error);
+        res.status(500).json({
+            success: false,
+            error: '서버 오류가 발생했습니다'
+        });
+    }
+});
+
+/**
+ * 🆕 Get story dialogue for merchant
+ * GET /api/merchants/:merchantId/story
+ *
+ * IMPORTANT: This is SEPARATE from /dialogues endpoint
+ * /dialogues: Returns general merchant conversation text
+ * /story: Returns story node based dialogue with choices
+ */
+router.get('/:merchantId/story', async (req, res) => {
+    try {
+        const { merchantId } = req.params;
+        const playerId = req.user.playerId;
+
+        // Check if merchant has story role
+        const merchant = await DatabaseManager.get(`
+            SELECT id, name, story_role, initial_story_node, has_active_story
+            FROM merchants
+            WHERE id = ? AND is_active = 1
+        `, [merchantId]);
+
+        if (!merchant || !merchant.has_active_story) {
+            return res.status(404).json({
+                success: false,
+                error: 'No active story for this merchant'
+            });
+        }
+
+        // Get player's story progress
+        const StoryService = require('../../services/game/StoryService');
+        const progress = await StoryService.getPlayerStoryProgress(playerId);
+
+        // Determine which node to show
+        let nodeId;
+        if (progress.currentNodeId && progress.currentNodeId.includes(merchantId)) {
+            nodeId = progress.currentNodeId;
+        } else {
+            nodeId = merchant.initial_story_node;
+        }
+
+        if (!nodeId) {
+            return res.status(404).json({
+                success: false,
+                error: 'No story node available'
+            });
+        }
+
+        // Get story node
+        const node = await StoryService.getStoryNode(nodeId);
+
+        // Check prerequisites
+        const canAccess = await StoryService.checkPrerequisites(playerId, node.prerequisites);
+        if (!canAccess.success) {
+            return res.json({
+                success: false,
+                error: 'PREREQUISITES_NOT_MET',
+                missing: canAccess.missing,
+                fallbackDialogue: "아직 그 이야기를 나눌 때가 아닌 것 같습니다."
+            });
+        }
+
+        // Filter available choices
+        const availableChoices = await StoryService.filterChoices(playerId, node.choices);
+
+        res.json({
+            success: true,
+            data: {
+                node: {
+                    id: node.id,
+                    type: node.node_type,
+                    content: JSON.parse(node.content),
+                    choices: availableChoices
+                },
+                merchantName: merchant.name
+            }
+        });
+
+    } catch (error) {
+        logger.error('Story dialogue fetch failed:', error);
+        res.status(500).json({
+            success: false,
+            error: '서버 오류가 발생했습니다'
+        });
+    }
+});
+
+/**
+ * 🆕 Progress story dialogue
+ * POST /api/merchants/:merchantId/story/progress
+ */
+router.post('/:merchantId/story/progress', async (req, res) => {
+    try {
+        const { merchantId } = req.params;
+        const { nodeId, choiceId } = req.body;
+        const playerId = req.user.playerId;
+
+        const StoryService = require('../../services/game/StoryService');
+
+        // Progress the story
+        const result = await StoryService.progressStory(playerId, nodeId, choiceId);
+
+        // Notify quest system about dialogue completion
+        try {
+            const activeQuests = await DatabaseManager.all(`
+                SELECT pq.*, qt.objectives
+                FROM player_quests pq
+                JOIN quest_templates qt ON pq.quest_template_id = qt.id
+                WHERE pq.player_id = ? AND pq.status = 'active'
+            `, [playerId]);
+
+            for (const quest of activeQuests) {
+                const objectives = JSON.parse(quest.objectives || '[]');
+                const progress = JSON.parse(quest.progress || '{}');
+                let updated = false;
+
+                objectives.forEach((obj, index) => {
+                    if (obj.type === 'dialogue' &&
+                        obj.target_node === nodeId &&
+                        obj.merchantId === merchantId) {
+                        progress[`objective_${index}`] = 1;
+                        updated = true;
+                    }
+                });
+
+                if (updated) {
+                    await DatabaseManager.run(`
+                        UPDATE player_quests
+                        SET progress = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `, [JSON.stringify(progress), quest.id]);
+
+                    // Check if quest is now complete
+                    const allComplete = objectives.every((_, i) => progress[`objective_${i}`] === 1);
+                    if (allComplete) {
+                        await DatabaseManager.run(`
+                            UPDATE player_quests
+                            SET status = 'completed', completed_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        `, [quest.id]);
+                    }
+                }
+            }
+        } catch (questError) {
+            logger.warn('Quest update failed during story progress', questError);
+        }
+
+        // Load next node if available
+        let nextNodeData = null;
+        if (result.nextNode) {
+            const nextNode = await StoryService.getStoryNode(result.nextNode);
+            nextNodeData = {
+                id: nextNode.id,
+                type: nextNode.node_type,
+                content: JSON.parse(nextNode.content),
+                choices: await StoryService.filterChoices(playerId, nextNode.choices)
+            };
+        }
+
+        res.json({
+            success: true,
+            data: {
+                completedNode: result.completedNode,
+                rewards: result.rewards,
+                nextNode: nextNodeData
+            }
+        });
+
+    } catch (error) {
+        logger.error('Story progress failed:', error);
         res.status(500).json({
             success: false,
             error: '서버 오류가 발생했습니다'

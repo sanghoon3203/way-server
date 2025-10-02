@@ -168,25 +168,37 @@ class AdminCRUDService {
             data.id = require('crypto').randomUUID();
         }
 
-        // 동적 INSERT 쿼리 생성
-        const columns = Object.keys(data).join(', ');
-        const placeholders = Object.keys(data).map(() => '?').join(', ');
-        const values = Object.values(data);
+        // 🔒 SECURITY: Whitelist column names against schema
+        const allowedColumns = config.fields.map(f => f.name);
+        const validatedData = {};
+
+        for (const [key, value] of Object.entries(data)) {
+            if (!allowedColumns.includes(key)) {
+                logger.warn(`Rejected invalid column in CREATE: ${key}`, { entity, adminId });
+                continue; // Skip invalid columns
+            }
+            validatedData[key] = value;
+        }
+
+        // 동적 INSERT 쿼리 생성 (validated columns only)
+        const columns = Object.keys(validatedData).join(', ');
+        const placeholders = Object.keys(validatedData).map(() => '?').join(', ');
+        const values = Object.values(validatedData);
 
         const query = `INSERT INTO ${config.table} (${columns}) VALUES (${placeholders})`;
-        
+
         await DatabaseManager.run(query, values);
 
         // 액션 로그 기록
-        await AdminAuth.logAction(adminId, 'create', entity, data.id, null, data);
+        await AdminAuth.logAction(adminId, 'create', entity, validatedData.id, null, validatedData);
 
         logger.info(`어드민이 ${config.displayName} 생성`, {
             adminId,
             entity,
-            id: data.id
+            id: validatedData.id
         });
 
-        return data;
+        return validatedData;
     }
 
     // 조회 (READ)
@@ -201,37 +213,47 @@ class AdminCRUDService {
         const limit = Math.min(100, Math.max(1, parseInt(pagination.limit) || 20));
         const offset = (page - 1) * limit;
 
-        // WHERE 절 구성
+        // 🔒 SECURITY: Whitelist filter columns against schema
+        const allowedColumns = config.fields.map(f => f.name);
         const whereConditions = [];
         const whereValues = [];
 
         Object.entries(filters).forEach(([key, value]) => {
             if (value !== undefined && value !== null && value !== '') {
+                // Validate column name against whitelist
+                if (!allowedColumns.includes(key)) {
+                    logger.warn(`Rejected invalid filter column: ${key}`, { entity });
+                    return; // Skip invalid columns
+                }
                 whereConditions.push(`${key} LIKE ?`);
                 whereValues.push(`%${value}%`);
             }
         });
 
-        const whereClause = whereConditions.length > 0 
-            ? `WHERE ${whereConditions.join(' AND ')}` 
+        const whereClause = whereConditions.length > 0
+            ? `WHERE ${whereConditions.join(' AND ')}`
             : '';
 
-        // 엔티티별 기본 정렬 컬럼 설정
-        const getDefaultSortColumn = (entityName) => {
-            switch (entityName) {
-                case 'merchants':
-                    return 'last_restocked'; // merchants 테이블에는 created_at이 없음
-                case 'users':
-                case 'players':
-                    return 'created_at';
-                case 'trade_records':
-                    return 'created_at'; // trade_date가 아닌 created_at 사용
-                default:
-                    return 'id'; // 안전한 기본값
+        // 🔒 SECURITY: Whitelist sort columns
+        const getDefaultSortColumn = (entityName, allowedCols) => {
+            const sortPreference = {
+                'merchants': 'last_restocked',
+                'users': 'created_at',
+                'players': 'created_at',
+                'trade_records': 'created_at'
+            };
+
+            const preferredColumn = sortPreference[entityName] || 'id';
+
+            // Verify column exists in schema
+            if (!allowedCols.includes(preferredColumn)) {
+                return 'id'; // Safest fallback
             }
+
+            return preferredColumn;
         };
 
-        const sortColumn = getDefaultSortColumn(entity);
+        const sortColumn = getDefaultSortColumn(entity, allowedColumns);
 
         // 데이터 조회
         const dataQuery = `
@@ -240,7 +262,7 @@ class AdminCRUDService {
             ORDER BY ${sortColumn} DESC
             LIMIT ? OFFSET ?
         `;
-        
+
         const data = await DatabaseManager.all(dataQuery, [...whereValues, limit, offset]);
 
         // 총 개수 조회
@@ -270,7 +292,7 @@ class AdminCRUDService {
 
         // 기존 데이터 조회
         const oldData = await DatabaseManager.get(
-            `SELECT * FROM ${config.table} WHERE id = ?`, 
+            `SELECT * FROM ${config.table} WHERE id = ?`,
             [id]
         );
 
@@ -284,25 +306,44 @@ class AdminCRUDService {
             delete updates[field];
         });
 
-        // 동적 UPDATE 쿼리 생성
-        const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-        const values = [...Object.values(updates), id];
+        // 🔒 SECURITY: Whitelist update columns against schema
+        const allowedColumns = config.fields
+            .filter(f => !f.readonly)
+            .map(f => f.name);
+
+        const validatedUpdates = {};
+
+        for (const [key, value] of Object.entries(updates)) {
+            if (!allowedColumns.includes(key)) {
+                logger.warn(`Rejected invalid column in UPDATE: ${key}`, { entity, adminId });
+                continue; // Skip invalid columns
+            }
+            validatedUpdates[key] = value;
+        }
+
+        if (Object.keys(validatedUpdates).length === 0) {
+            throw new Error('수정할 유효한 필드가 없습니다');
+        }
+
+        // 동적 UPDATE 쿼리 생성 (validated columns only)
+        const setClause = Object.keys(validatedUpdates).map(key => `${key} = ?`).join(', ');
+        const values = [...Object.values(validatedUpdates), id];
 
         const query = `UPDATE ${config.table} SET ${setClause} WHERE id = ?`;
-        
+
         await DatabaseManager.run(query, values);
 
         // 액션 로그 기록
-        await AdminAuth.logAction(adminId, 'update', entity, id, oldData, updates);
+        await AdminAuth.logAction(adminId, 'update', entity, id, oldData, validatedUpdates);
 
         logger.info(`어드민이 ${config.displayName} 수정`, {
             adminId,
             entity,
             id,
-            changes: Object.keys(updates)
+            changes: Object.keys(validatedUpdates)
         });
 
-        return { ...oldData, ...updates };
+        return { ...oldData, ...validatedUpdates };
     }
 
     // 삭제 (DELETE)

@@ -118,6 +118,7 @@ function handleValidationError(error, req, res) {
  * 데이터베이스 에러 처리
  */
 function handleDatabaseError(error, req, res) {
+    // 🔒 SECURITY: Log SQL query details only, never expose to client
     logger.error('Database Error:', {
         error: error.message,
         code: error.code,
@@ -126,19 +127,12 @@ function handleDatabaseError(error, req, res) {
         method: req.method
     });
 
-    // 개발 환경에서는 상세 에러 정보 제공
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    const details = isDevelopment ? {
-        code: error.code,
-        sql: error.sql,
-        originalMessage: error.message
-    } : null;
-
+    // 🔒 SECURITY: Never expose SQL queries or internal error details to client
+    // Even in development, return generic error message
     return StandardResponse.error(res, {
         error: 'Database operation failed',
         errorCode: 'DATABASE_ERROR',
-        statusCode: 500,
-        details
+        statusCode: 500
     });
 }
 
@@ -209,7 +203,7 @@ function handleMulterError(error, req, res) {
  * 알 수 없는 에러 처리
  */
 function handleUnknownError(error, req, res) {
-    // 심각한 에러이므로 상세 로깅
+    // 🔒 SECURITY: Log full error details server-side only
     logger.error('Unhandled Error:', {
         error: error.message,
         stack: error.stack,
@@ -220,18 +214,11 @@ function handleUnknownError(error, req, res) {
         body: req.body
     });
 
-    // 개발 환경에서는 상세 정보 제공
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    const details = isDevelopment ? {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-    } : null;
-
+    // 🔒 SECURITY: Never expose stack traces or internal error details to client
+    // Even in development, return generic error message
     return StandardResponse.internalError(res, {
         error: 'Internal server error',
-        errorCode: 'INTERNAL_ERROR',
-        details
+        errorCode: 'INTERNAL_ERROR'
     });
 }
 

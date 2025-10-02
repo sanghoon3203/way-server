@@ -239,10 +239,26 @@ router.post('/increase-stat', [
             });
         }
 
-        // 스탯 증가
+        // 🔒 SECURITY: Use safe column mapping instead of string interpolation
+        const statColumnMap = {
+            'strength': 'strength',
+            'intelligence': 'intelligence',
+            'charisma': 'charisma',
+            'luck': 'luck'
+        };
+
+        const safeColumn = statColumnMap[statType];
+        if (!safeColumn) {
+            return res.status(400).json({
+                success: false,
+                error: '유효하지 않은 스탯 타입입니다'
+            });
+        }
+
+        // 스탯 증가 (안전한 컬럼명 사용)
         const updateQuery = `
-            UPDATE players 
-            SET ${statType} = ${statType} + 1, stat_points = stat_points - 1
+            UPDATE players
+            SET ${safeColumn} = ${safeColumn} + 1, stat_points = stat_points - 1
             WHERE id = ?
         `;
 
@@ -296,9 +312,23 @@ router.post('/increase-skill', [
 
         const { skillType } = req.body;
         const playerId = req.player.id;
-        const skillColumn = `${skillType}_skill`;
 
-        // 현재 플레이어 정보 조회
+        // 🔒 SECURITY: Use safe column mapping instead of string interpolation
+        const skillColumnMap = {
+            'trading': 'trading_skill',
+            'negotiation': 'negotiation_skill',
+            'appraisal': 'appraisal_skill'
+        };
+
+        const skillColumn = skillColumnMap[skillType];
+        if (!skillColumn) {
+            return res.status(400).json({
+                success: false,
+                error: '유효하지 않은 스킬 타입입니다'
+            });
+        }
+
+        // 현재 플레이어 정보 조회 (안전한 컬럼명 사용)
         const player = await DatabaseManager.get(
             `SELECT skill_points, ${skillColumn} FROM players WHERE id = ?`,
             [playerId]

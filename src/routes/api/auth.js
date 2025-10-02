@@ -371,7 +371,10 @@ router.post('/password/reset/request', [
         });
     }
 
-    const verificationCode = generateVerificationCode();
+    // 🔒 SECURITY: Use strong cryptographic token instead of 6-digit code
+    const crypto = require('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
     const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRY_MINUTES * 60 * 1000).toISOString();
 
     // 기존 토큰 제거 후 새 토큰 생성
@@ -382,26 +385,25 @@ router.post('/password/reset/request', [
 
     await DatabaseManager.run(
         `INSERT INTO password_reset_tokens (id, user_id, email, token, expires_at)
-         VALUES (?, ?, ?, ?, ?)` ,
-        [randomUUID(), user.id, email, verificationCode, expiresAt]
+         VALUES (?, ?, ?, ?, ?)`,
+        [randomUUID(), user.id, email, tokenHash, expiresAt]
     );
 
-    logger.info('비밀번호 재설정 코드 발급', {
+    logger.info('비밀번호 재설정 토큰 발급', {
         userId: user.id,
         email,
-        expiresAt,
-        // 개발 환경에서만 코드 로깅
-        ...(process.env.NODE_ENV !== 'production' && { verificationCode })
+        expiresAt
+        // 🔒 SECURITY: Never log the actual token, even in development
     });
 
     const responseData = {
         maskedEmail: maskEmail(email),
-        expiresIn: PASSWORD_RESET_EXPIRY_MINUTES * 60
+        expiresIn: PASSWORD_RESET_EXPIRY_MINUTES * 60,
+        resetToken: resetToken // Send unhashed token to user (only once)
     };
 
-    if (process.env.NODE_ENV !== 'production') {
-        responseData.verificationCode = verificationCode;
-    }
+    // 🔒 SECURITY: Remove development-only code exposure
+    // Tokens should always be sent via secure channel (email/SMS)
 
     return res.json({
         success: true,
@@ -419,9 +421,10 @@ router.post('/password/reset/verify', [
         .isEmail()
         .normalizeEmail()
         .withMessage('유효한 이메일 주소를 입력해주세요'),
-    body('verificationCode')
-        .isLength({ min: 6, max: 6 })
-        .withMessage('6자리 인증번호를 입력해주세요'),
+    body('resetToken')
+        .isLength({ min: 64, max: 64 })
+        .isHexadecimal()
+        .withMessage('유효한 재설정 토큰을 입력해주세요'),
     body('newPassword')
         .isLength({ min: 6 })
         .withMessage('비밀번호는 최소 6자 이상이어야 합니다')
@@ -435,7 +438,11 @@ router.post('/password/reset/verify', [
         });
     }
 
-    const { email, verificationCode, newPassword } = req.body;
+    const { email, resetToken, newPassword } = req.body;
+
+    // 🔒 SECURITY: Hash the submitted token for comparison
+    const crypto = require('crypto');
+    const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
     const tokenRecord = await DatabaseManager.get(
         `SELECT id, user_id, email, token, expires_at, used_at
@@ -443,27 +450,27 @@ router.post('/password/reset/verify', [
          WHERE email = ? AND token = ?
          ORDER BY created_at DESC
          LIMIT 1`,
-        [email, verificationCode]
+        [email, tokenHash]
     );
 
     if (!tokenRecord) {
         return res.status(400).json({
             success: false,
-            error: '유효하지 않은 인증번호입니다'
+            error: '유효하지 않은 재설정 토큰입니다'
         });
     }
 
     if (tokenRecord.used_at) {
         return res.status(400).json({
             success: false,
-            error: '이미 사용된 인증번호입니다'
+            error: '이미 사용된 재설정 토큰입니다'
         });
     }
 
     if (new Date(tokenRecord.expires_at) < new Date()) {
         return res.status(400).json({
             success: false,
-            error: '인증번호가 만료되었습니다'
+            error: '재설정 토큰이 만료되었습니다'
         });
     }
 

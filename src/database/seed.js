@@ -241,7 +241,9 @@ async function seedDatabase(options = {}) {
         await seedIfNeeded('merchants', seedMerchants, '상인', { force, seededTables });
         await seedIfNeeded('merchant_dialogues', seedMerchantDialogues, '상인 대화', { force, seededTables });
         await seedIfNeeded('merchant_inventory', seedMerchantInventory, '상인 인벤토리', { force, seededTables });
+        await seedIfNeeded('story_nodes', seedStoryNodes, '스토리 노드', { force, seededTables });
         await seedIfNeeded('quest_templates', seedQuestTemplates, '퀘스트 템플릿', { force, seededTables });
+        await seedIfNeeded('quest_templates', seedStoryQuests, '스토리 퀘스트', { force, seededTables });
         await seedIfNeeded('skill_templates', seedSkillTemplates, '스킬 템플릿', { force, seededTables });
         await seedIfNeeded('achievement_templates', seedAchievements, '성취 템플릿', { force, seededTables });
         await seedIfNeeded('users', seedTestPlayers, '테스트 플레이어', { force, seededTables });
@@ -377,29 +379,18 @@ async function seedMerchants() {
 
     const merchantColumns = await DatabaseManager.all("PRAGMA table_info(merchants)");
     const hasImageFilenameColumn = merchantColumns.some(column => column.name === 'image_filename');
+    const hasStoryColumns = merchantColumns.some(column => column.name === 'story_role');
 
     if (!hasImageFilenameColumn) {
         logger.warn('merchants 테이블에 image_filename 컬럼이 없습니다. 마이그레이션 실행을 권장하며, 기본 이미지 없이 시드를 진행합니다.');
     }
+
+    if (!hasStoryColumns) {
+        logger.warn('merchants 테이블에 story_role 컬럼이 없습니다. 스토리 시스템 마이그레이션(005)이 실행되지 않았을 수 있습니다.');
+    }
     
     const merchants = [
-        // 네오 시부야 - 사이버펑크 스타일
-        {
-            id: 'seoyena',
-            name: '서예나',
-            title: '네오-시티 스타일리스트',
-            type: 'fashion',
-            personality: 'cold',
-            district: 'neo_shibuya',
-            lat: 37.5665,
-            lng: 126.9780,
-            priceModifier: 1.3,
-            negotiationDifficulty: 4,
-            reputationRequirement: 100,
-            imageFileName: 'Seoyena.png'
-        },
-
-        // 마포 크레이티브 허브 - 천사혈통 염력 전문가
+        // 마포 크레이티브 허브 - 천사혈통 염력 전문가 (Tier 1: 메인 스토리)
         {
             id: 'mari',
             name: '마리',
@@ -412,10 +403,32 @@ async function seedMerchants() {
             priceModifier: 1.4,
             negotiationDifficulty: 2,
             reputationRequirement: 0,
-            imageFileName: 'Mari.png'
+            imageFileName: 'Mari.png',
+            storyRole: 'main',
+            initialStoryNode: 'story_mari_01',
+            hasActiveStory: 1
         },
 
-        // 아카데믹 가든 - 과학 임플란트 전문가
+        // 메트로 폴리스 - 성스러운 아이템 전문가 (Tier 2: 사이드 스토리)
+        {
+            id: 'catarinachoi',
+            name: '카타리나 최',
+            title: '성당 프리스트',
+            type: 'religious',
+            personality: 'protective',
+            district: 'metro',
+            lat: 37.5012,
+            lng: 127.0396,
+            priceModifier: 1.8,
+            negotiationDifficulty: 1,
+            reputationRequirement: 25,
+            imageFileName: 'Catarinachoi.png',
+            storyRole: 'side',
+            initialStoryNode: 'story_katarina_01',
+            hasActiveStory: 1
+        },
+
+        // 아카데믹 가든 - 과학 임플란트 전문가 (Tier 2: 사이드 스토리)
         {
             id: 'kimsehwui',
             name: '김세휘',
@@ -429,10 +442,32 @@ async function seedMerchants() {
             negotiationDifficulty: 3,
             reputationRequirement: 50,
             requiredLicense: 1,
-            imageFileName: 'Kimsehwui.png'
+            imageFileName: 'Kimsehwui.png',
+            storyRole: 'side',
+            initialStoryNode: 'story_kim_01',
+            hasActiveStory: 1
         },
 
-        // 레이크사이드 원더랜드 - 드림크리스탈 전문가
+        // 네오 시부야 - 사이버펑크 스타일 (거래 전용)
+        {
+            id: 'seoyena',
+            name: '서예나',
+            title: '네오-시티 스타일리스트',
+            type: 'fashion',
+            personality: 'cold',
+            district: 'neo_shibuya',
+            lat: 37.5665,
+            lng: 126.9780,
+            priceModifier: 1.3,
+            negotiationDifficulty: 4,
+            reputationRequirement: 100,
+            imageFileName: 'Seoyena.png',
+            storyRole: 'vendor_only',
+            initialStoryNode: null,
+            hasActiveStory: 0
+        },
+
+        // 레이크사이드 원더랜드 - 드림크리스탈 전문가 (거래 전용)
         {
             id: 'anipark',
             name: '애니박',
@@ -446,26 +481,13 @@ async function seedMerchants() {
             negotiationDifficulty: 2,
             reputationRequirement: 200,
             requiredLicense: 2,
-            imageFileName: 'Anipark.png'
+            imageFileName: 'Anipark.png',
+            storyRole: 'vendor_only',
+            initialStoryNode: null,
+            hasActiveStory: 0
         },
 
-        // 메트로 폴리스 - 성스러운 아이템 전문가
-        {
-            id: 'catarinachoi',
-            name: '카타리나 최',
-            title: '성당 프리스트',
-            type: 'religious',
-            personality: 'protective',
-            district: 'metro',
-            lat: 37.5012,
-            lng: 127.0396,
-            priceModifier: 1.8,
-            negotiationDifficulty: 1,
-            reputationRequirement: 25,
-            imageFileName: 'Catarinachoi.png'
-        },
-
-        // 이스트리버빌리지 - 커피하우스 운영
+        // 이스트리버빌리지 - 커피하우스 운영 (거래 전용)
         {
             id: 'jinbaekho',
             name: '진백호',
@@ -478,10 +500,13 @@ async function seedMerchants() {
             priceModifier: 1.6,
             negotiationDifficulty: 4,
             reputationRequirement: 75,
-            imageFileName: 'Jinbaekho.png'
+            imageFileName: 'Jinbaekho.png',
+            storyRole: 'vendor_only',
+            initialStoryNode: null,
+            hasActiveStory: 0
         },
 
-        // 이스트리버빌리지 - 대장장이 무기 제작
+        // 이스트리버빌리지 - 대장장이 무기 제작 (거래 전용)
         {
             id: 'jubulsu',
             name: '주불수',
@@ -495,10 +520,13 @@ async function seedMerchants() {
             negotiationDifficulty: 5,
             reputationRequirement: 150,
             requiredLicense: 1,
-            imageFileName: 'Jubulsu.png'
+            imageFileName: 'Jubulsu.png',
+            storyRole: 'vendor_only',
+            initialStoryNode: null,
+            hasActiveStory: 0
         },
 
-        // 시간의 회랑 - 시간 보안 장비
+        // 시간의 회랑 - 시간 보안 장비 (거래 전용)
         {
             id: 'kijuri',
             name: '기주리',
@@ -512,7 +540,10 @@ async function seedMerchants() {
             negotiationDifficulty: 5,
             reputationRequirement: 300,
             requiredLicense: 2,
-            imageFileName: 'Kijuri.png'
+            imageFileName: 'Kijuri.png',
+            storyRole: 'vendor_only',
+            initialStoryNode: null,
+            hasActiveStory: 0
         }
     ];
     
@@ -546,6 +577,12 @@ async function seedMerchants() {
 
         if (hasImageFilenameColumn) {
             addColumn('image_filename', merchant.imageFileName || null);
+        }
+
+        if (hasStoryColumns) {
+            addColumn('story_role', merchant.storyRole || 'vendor_only');
+            addColumn('initial_story_node', merchant.initialStoryNode || null);
+            addColumn('has_active_story', merchant.hasActiveStory || 0);
         }
 
         addColumn('is_active', 1);
@@ -709,6 +746,244 @@ async function seedMerchantDialogues() {
     }
 
     logger.info(`상인 대화 ${insertedCount}건 생성 완료`);
+}
+
+async function seedStoryNodes() {
+    logger.info('스토리 노드 생성...');
+
+    const storyNodes = [
+        // 마리 메인 스토리 노드들
+        {
+            id: 'story_mari_01',
+            node_type: 'dialogue',
+            merchant_id: 'mari',
+            content: JSON.stringify({
+                speaker: '마리',
+                text: '어머, 새로운 얼굴이네요! 이 동네에서 처음 보는 것 같은데... 혹시 거래하러 오신 건가요?',
+                context: 'tutorial_intro'
+            }),
+            choices: JSON.stringify([
+                {
+                    id: 'choice_mari_01_a',
+                    text: '네, 처음입니다. 여기서 무엇을 할 수 있나요?',
+                    next_node: 'story_mari_02'
+                },
+                {
+                    id: 'choice_mari_01_b',
+                    text: '그냥 둘러보는 중입니다.',
+                    next_node: 'story_mari_02'
+                }
+            ]),
+            prerequisites: JSON.stringify({
+                player_level_min: 1
+            }),
+            next_nodes: JSON.stringify(['story_mari_02']),
+            rewards: null,
+            metadata: JSON.stringify({
+                story_arc: 'mari_tutorial',
+                sequence: 1
+            })
+        },
+        {
+            id: 'story_mari_02',
+            node_type: 'dialogue',
+            merchant_id: 'mari',
+            content: JSON.stringify({
+                speaker: '마리',
+                text: '저는 염력 부여 전문가예요. 평범한 물건에 특별한 힘을 불어넣어 드리죠. 아, 물론 거래도 하고요!',
+                context: 'tutorial_explanation'
+            }),
+            choices: JSON.stringify([
+                {
+                    id: 'choice_mari_02_a',
+                    text: '염력 부여요? 흥미롭네요. 더 알려주실 수 있나요?',
+                    next_node: 'story_mari_03'
+                }
+            ]),
+            prerequisites: null,
+            next_nodes: JSON.stringify(['story_mari_03']),
+            rewards: null,
+            metadata: JSON.stringify({
+                story_arc: 'mari_tutorial',
+                sequence: 2
+            })
+        },
+        {
+            id: 'story_mari_03',
+            node_type: 'quest_trigger',
+            merchant_id: 'mari',
+            content: JSON.stringify({
+                speaker: '마리',
+                text: '그럼 간단한 거래부터 시작해볼까요? 제가 첫 거래는 특별 할인해드릴게요!',
+                context: 'tutorial_quest_start'
+            }),
+            choices: JSON.stringify([
+                {
+                    id: 'choice_mari_03_a',
+                    text: '좋아요, 해볼게요!',
+                    quest_trigger: 'quest_tutorial_001',
+                    next_node: null
+                }
+            ]),
+            prerequisites: null,
+            next_nodes: null,
+            rewards: JSON.stringify({
+                reputation: 5,
+                gold: 1000
+            }),
+            metadata: JSON.stringify({
+                story_arc: 'mari_tutorial',
+                sequence: 3,
+                triggers_quest: 'quest_tutorial_001'
+            })
+        },
+
+        // 카타리나 최 사이드 스토리 노드들
+        {
+            id: 'story_katarina_01',
+            node_type: 'dialogue',
+            merchant_id: 'catarinachoi',
+            content: JSON.stringify({
+                speaker: '카타리나 최',
+                text: '신의 축복이 함께 하기를. 어떤 일로 성당을 찾아주셨나요?',
+                context: 'religious_greeting'
+            }),
+            choices: JSON.stringify([
+                {
+                    id: 'choice_katarina_01_a',
+                    text: '성스러운 아이템을 찾고 있습니다.',
+                    next_node: 'story_katarina_02',
+                    prerequisites: { reputation_min: 25 }
+                },
+                {
+                    id: 'choice_katarina_01_b',
+                    text: '그냥 구경하러 왔어요.',
+                    next_node: null
+                }
+            ]),
+            prerequisites: JSON.stringify({
+                reputation_min: 25
+            }),
+            next_nodes: JSON.stringify(['story_katarina_02']),
+            rewards: null,
+            metadata: JSON.stringify({
+                story_arc: 'katarina_faith',
+                sequence: 1
+            })
+        },
+        {
+            id: 'story_katarina_02',
+            node_type: 'dialogue',
+            merchant_id: 'catarinachoi',
+            content: JSON.stringify({
+                speaker: '카타리나 최',
+                text: '성스러운 힘은 순수한 마음을 가진 이들에게만 응답합니다. 당신의 마음이 진실하다면, 제가 도와드리겠습니다.',
+                context: 'religious_test'
+            }),
+            choices: JSON.stringify([
+                {
+                    id: 'choice_katarina_02_a',
+                    text: '저는 진심으로 도움이 필요합니다.',
+                    next_node: null
+                }
+            ]),
+            prerequisites: null,
+            next_nodes: null,
+            rewards: JSON.stringify({
+                reputation: 10,
+                unlock_items: ['holy_water', 'blessing_charm']
+            }),
+            metadata: JSON.stringify({
+                story_arc: 'katarina_faith',
+                sequence: 2
+            })
+        },
+
+        // 김세휘 사이드 스토리 노드들
+        {
+            id: 'story_kim_01',
+            node_type: 'dialogue',
+            merchant_id: 'kimsehwui',
+            content: JSON.stringify({
+                speaker: '김세휘',
+                text: '실험실에 찾아온 사람이 있다니 드물군요. 임플란트 기술에 관심이 있으신가요?',
+                context: 'tech_intro'
+            }),
+            choices: JSON.stringify([
+                {
+                    id: 'choice_kim_01_a',
+                    text: '네, 과학 임플란트에 대해 알고 싶습니다.',
+                    next_node: 'story_kim_02',
+                    prerequisites: { reputation_min: 50, license_min: 1 }
+                },
+                {
+                    id: 'choice_kim_01_b',
+                    text: '아니요, 그냥 구경하러 왔어요.',
+                    next_node: null
+                }
+            ]),
+            prerequisites: JSON.stringify({
+                reputation_min: 50,
+                license_min: 1
+            }),
+            next_nodes: JSON.stringify(['story_kim_02']),
+            rewards: null,
+            metadata: JSON.stringify({
+                story_arc: 'kim_technology',
+                sequence: 1
+            })
+        },
+        {
+            id: 'story_kim_02',
+            node_type: 'dialogue',
+            merchant_id: 'kimsehwui',
+            content: JSON.stringify({
+                speaker: '김세휘',
+                text: '임플란트는 인간의 한계를 넘어서는 기술입니다. 하지만 책임감 없이 사용하면 위험할 수 있죠. 당신은 그럴 준비가 되어 있나요?',
+                context: 'tech_warning'
+            }),
+            choices: JSON.stringify([
+                {
+                    id: 'choice_kim_02_a',
+                    text: '책임감을 가지고 사용하겠습니다.',
+                    next_node: null
+                }
+            ]),
+            prerequisites: null,
+            next_nodes: null,
+            rewards: JSON.stringify({
+                reputation: 15,
+                unlock_items: ['neural_implant', 'bio_chip']
+            }),
+            metadata: JSON.stringify({
+                story_arc: 'kim_technology',
+                sequence: 2
+            })
+        }
+    ];
+
+    let insertedCount = 0;
+    for (const node of storyNodes) {
+        await DatabaseManager.run(`
+            INSERT INTO story_nodes (
+                id, node_type, merchant_id, content, choices,
+                prerequisites, next_nodes, rewards, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            node.id,
+            node.node_type,
+            node.merchant_id,
+            node.content,
+            node.choices,
+            node.prerequisites,
+            node.next_nodes,
+            node.rewards,
+            node.metadata
+        ]);
+        insertedCount++;
+    }
+
+    logger.info(`${insertedCount}개의 스토리 노드 생성 완료`);
 }
 
 async function seedQuestTemplates() {
@@ -896,6 +1171,153 @@ async function seedQuestTemplates() {
     }
     
     logger.info(`${questTemplates.length}개의 퀘스트 템플릿 생성 완료`);
+}
+
+async function seedStoryQuests() {
+    logger.info('스토리 퀘스트 생성...');
+
+    const storyQuests = [
+        // 마리 튜토리얼 퀘스트
+        {
+            id: 'quest_story_mari_tutorial',
+            name: '마리와의 첫 만남',
+            description: '마리와 대화하고 염력 부여에 대해 배워보세요',
+            category: 'story',
+            type: 'dialogue',
+            level_requirement: 1,
+            required_merchant: 'mari',
+            objectives: JSON.stringify([
+                {
+                    type: 'visit_merchant',
+                    target: 'mari',
+                    count: 1,
+                    description: '마리 방문하기'
+                },
+                {
+                    type: 'complete_dialogue',
+                    target: 'story_mari_03',
+                    count: 1,
+                    description: '마리와 대화 완료하기'
+                }
+            ]),
+            rewards: JSON.stringify({
+                gold: 1000,
+                reputation: 5,
+                experience: 50
+            }),
+            is_repeatable: 0,
+            cooldown_hours: null,
+            expires_at: null,
+            story_arc: 'mari_tutorial'
+        },
+
+        // 카타리나 최 신앙의 시험 퀘스트
+        {
+            id: 'quest_story_katarina_faith',
+            name: '신앙의 시험',
+            description: '카타리나 최에게 당신의 진심을 증명하세요',
+            category: 'story',
+            type: 'dialogue',
+            level_requirement: 5,
+            required_merchant: 'catarinachoi',
+            prerequisites: JSON.stringify({
+                reputation_min: 25,
+                completed_quests: ['quest_story_mari_tutorial']
+            }),
+            objectives: JSON.stringify([
+                {
+                    type: 'visit_merchant',
+                    target: 'catarinachoi',
+                    count: 1,
+                    description: '카타리나 최 방문하기'
+                },
+                {
+                    type: 'complete_dialogue',
+                    target: 'story_katarina_02',
+                    count: 1,
+                    description: '신앙의 시험 통과하기'
+                }
+            ]),
+            rewards: JSON.stringify({
+                gold: 2500,
+                reputation: 10,
+                experience: 150,
+                unlock_items: ['holy_water', 'blessing_charm']
+            }),
+            is_repeatable: 0,
+            cooldown_hours: null,
+            expires_at: null,
+            story_arc: 'katarina_faith'
+        },
+
+        // 김세휘 기술의 대가 퀘스트
+        {
+            id: 'quest_story_kim_technology',
+            name: '기술의 대가',
+            description: '김세휘에게 임플란트 기술의 책임감에 대해 배우세요',
+            category: 'story',
+            type: 'dialogue',
+            level_requirement: 10,
+            required_merchant: 'kimsehwui',
+            prerequisites: JSON.stringify({
+                reputation_min: 50,
+                license_min: 1,
+                completed_quests: ['quest_story_mari_tutorial']
+            }),
+            objectives: JSON.stringify([
+                {
+                    type: 'visit_merchant',
+                    target: 'kimsehwui',
+                    count: 1,
+                    description: '김세휘 방문하기'
+                },
+                {
+                    type: 'complete_dialogue',
+                    target: 'story_kim_02',
+                    count: 1,
+                    description: '기술의 책임감 배우기'
+                }
+            ]),
+            rewards: JSON.stringify({
+                gold: 5000,
+                reputation: 15,
+                experience: 300,
+                unlock_items: ['neural_implant', 'bio_chip']
+            }),
+            is_repeatable: 0,
+            cooldown_hours: null,
+            expires_at: null,
+            story_arc: 'kim_technology'
+        }
+    ];
+
+    let insertedCount = 0;
+    for (const quest of storyQuests) {
+        await DatabaseManager.run(`
+            INSERT INTO quest_templates (
+                id, name, description, category, type,
+                level_requirement, required_merchant, prerequisites, objectives,
+                rewards, is_repeatable, cooldown_hours, expires_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            quest.id,
+            quest.name,
+            quest.description,
+            quest.category,
+            quest.type,
+            quest.level_requirement,
+            quest.required_merchant,
+            quest.prerequisites || null,
+            quest.objectives,
+            quest.rewards,
+            quest.is_repeatable,
+            quest.cooldown_hours,
+            quest.expires_at
+        ]);
+        insertedCount++;
+    }
+
+    logger.info(`${insertedCount}개의 스토리 퀘스트 생성 완료`);
 }
 
 async function seedSkillTemplates() {
