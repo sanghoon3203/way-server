@@ -1,19 +1,35 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -e  # Exit on error
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+echo "======================================"
+echo "🚀 Railway Deployment Script"
+echo "======================================"
 
-cd "${PROJECT_ROOT}"
+# Change to project root
+cd "$(dirname "$0")/.."
+echo "📂 Working directory: $(pwd)"
 
-echo "[Railway] Running database migrations..."
-npm run migrate
-
-echo "[Railway] Seeding baseline game data..."
-if [[ "${FORCE_SEED:-false}" == "true" ]]; then
-  node -e "require('./src/database/seed').seedDatabase({ force: true }).then(() => process.exit(0)).catch(err => { console.error(err); process.exit(1); });"
+# Run migrations
+echo ""
+echo "🔄 Running database migrations..."
+if npm run migrate; then
+    echo "✅ Migrations completed successfully"
 else
-  node ./src/database/seed.js
+    echo "❌ Migration failed!"
+    exit 1
 fi
 
-echo "[Railway] Migrations and seed completed successfully."
+# Run seed
+echo ""
+echo "🌱 Seeding database..."
+if node ./src/database/seed.js; then
+    echo "✅ Seed completed successfully"
+else
+    echo "❌ Seed failed!"
+    exit 1
+fi
+
+echo ""
+echo "======================================"
+echo "✅ Railway deployment script completed"
+echo "======================================"
