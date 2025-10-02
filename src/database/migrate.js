@@ -68,7 +68,16 @@ async function runMigrations(options = {}) {
 
 // 스크립트 실행
 if (require.main === module) {
-    runMigrations();
+    (async () => {
+        try {
+            await runMigrations();
+            logger.info('✅ 마이그레이션 스크립트 성공적으로 완료');
+            process.exit(0);
+        } catch (error) {
+            logger.error('❌ 마이그레이션 스크립트 실패:', error);
+            process.exit(1);
+        }
+    })();
 }
 
 module.exports = { runMigrations };

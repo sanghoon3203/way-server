@@ -1750,7 +1750,16 @@ async function seedTestPlayers() {
 
 // 스크립트 실행
 if (require.main === module) {
-    seedDatabase();
+    (async () => {
+        try {
+            await seedDatabase();
+            logger.info('✅ 시드 스크립트 성공적으로 완료');
+            process.exit(0);
+        } catch (error) {
+            logger.error('❌ 시드 스크립트 실패:', error);
+            process.exit(1);
+        }
+    })();
 }
 
 module.exports = { seedDatabase };
