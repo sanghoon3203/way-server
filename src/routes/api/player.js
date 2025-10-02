@@ -2,7 +2,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const DatabaseManager = require('../../database/DatabaseManager');
-const JWTAuth = require('../../middleware/jwtAuth');
+const JWTAuth = require('../../middleware/auth');
 const logger = require('../../config/logger');
 
 const router = express.Router();
