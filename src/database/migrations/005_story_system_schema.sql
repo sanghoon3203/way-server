@@ -22,8 +22,30 @@ CREATE INDEX IF NOT EXISTS idx_merchants_has_story ON merchants(has_active_story
 UPDATE merchants SET story_role = 'vendor_only', has_active_story = 0 WHERE story_role IS NULL;
 
 -- ============================================
--- 2. quest_templates 테이블 확장
+-- 2. quest_templates 테이블 생성 및 확장
 -- ============================================
+-- quest_templates 테이블이 없을 경우 생성
+CREATE TABLE IF NOT EXISTS quest_templates (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    category TEXT NOT NULL,
+    type TEXT NOT NULL,
+    level_requirement INTEGER DEFAULT 1,
+    required_license INTEGER DEFAULT 0,
+    prerequisites TEXT DEFAULT '[]',
+    objectives TEXT NOT NULL,
+    rewards TEXT DEFAULT '{}',
+    auto_complete INTEGER DEFAULT 0,
+    repeatable INTEGER DEFAULT 0,
+    time_limit INTEGER DEFAULT 0,
+    cooldown_hours INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    sort_order INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 스토리 노드 ID 참조
 ALTER TABLE quest_templates ADD COLUMN story_node_id TEXT;
 
@@ -72,8 +94,20 @@ CREATE TABLE IF NOT EXISTS player_story_progress (
 CREATE INDEX IF NOT EXISTS idx_player_story_player ON player_story_progress(player_id);
 
 -- ============================================
--- 5. merchant_dialogues 테이블 확장 (optional)
+-- 5. merchant_dialogues 테이블 생성 및 확장 (optional)
 -- ============================================
+-- merchant_dialogues 테이블이 없을 경우 생성
+CREATE TABLE IF NOT EXISTS merchant_dialogues (
+    id TEXT PRIMARY KEY,
+    merchant_id TEXT NOT NULL REFERENCES merchants(id),
+    dialogue_key TEXT NOT NULL,
+    dialogue_text TEXT NOT NULL,
+    conditions TEXT DEFAULT '{}',
+    priority INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 스토리 노드 참조 추가 (기존 대화 시스템과 연동용)
 ALTER TABLE merchant_dialogues ADD COLUMN story_node_id TEXT;
 

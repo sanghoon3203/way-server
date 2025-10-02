@@ -1,6 +1,7 @@
 [build]
-  path = "."
-  command = "npm ci"
+  builder = "NIXPACKS"
 
 [deploy]
-  command = "npm start"
+  startCommand = "npm start"
+  restartPolicyType = "ON_FAILURE"
+  restartPolicyMaxRetries = 10

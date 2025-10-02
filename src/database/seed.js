@@ -810,7 +810,7 @@ async function seedStoryNodes() {
         },
         {
             id: 'story_mari_03',
-            node_type: 'quest_trigger',
+            node_type: 'quest_gate',
             merchant_id: 'mari',
             content: JSON.stringify({
                 speaker: '마리',
