@@ -495,8 +495,8 @@ async function seedMerchants() {
             type: 'beverages',
             personality: 'cunning',
             district: 'eastriver',
-            lat: 37.5384,
-            lng: 127.0594,
+            lat: 37.5217,  // 올림픽공원 근처
+            lng: 127.1224,
             priceModifier: 1.6,
             negotiationDifficulty: 4,
             reputationRequirement: 75,
@@ -514,8 +514,8 @@ async function seedMerchants() {
             type: 'weapons',
             personality: 'tough',
             district: 'eastriver',
-            lat: 37.5249,
-            lng: 127.0512,
+            lat: 37.5217,  // 올림픽공원 근처
+            lng: 127.1224,
             priceModifier: 2.2,
             negotiationDifficulty: 5,
             reputationRequirement: 150,

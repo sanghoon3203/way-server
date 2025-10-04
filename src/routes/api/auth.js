@@ -87,11 +87,41 @@ router.post('/register', [
                 params: [userId, email, passwordHash]
             },
             {
-                sql: `INSERT INTO players (id, user_id, name) VALUES (?, ?, ?)`,
-                params: [playerId, userId, playerName]
-            }
+                sql: `INSERT INTO players (
+                    id, user_id, name, money, trust_points, reputation, current_license,
+                    level, experience, stat_points, skill_points,
+                    strength, intelligence, charisma, luck,
+                    trading_skill, negotiation_skill, appraisal_skill,
+                    total_trades, total_profit, created_at, last_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                params: [
+                    playerId, userId, playerName,
+                    10000, // money: 초기 자금 10,000원
+                    0, // trust_points
+                    0, // reputation
+                    0, // current_license
+                    1, // level
+                    0, // experience
+                    0, // stat_points
+                    0, // skill_points
+                    10, // strength
+                    10, // intelligence
+                    10, // charisma
+                    10, // luck
+                    1, // trading_skill
+                    1, // negotiation_skill
+                    1, // appraisal_skill
+                    0, // total_trades
+                    0  // total_profit
+                ]
+            },
+            // 초기 인벤토리 슬롯 생성 (20개)
+            ...Array.from({ length: 20 }, (_, i) => ({
+                sql: `INSERT INTO player_inventory (id, player_id, slot_number, item_template_id, quantity) VALUES (?, ?, ?, NULL, 0)`,
+                params: [randomUUID(), playerId, i + 1]
+            }))
         ]);
-        console.info('[REGISTER] user/player inserted:', { userId, playerId });
+        console.info('[REGISTER] user/player/inventory inserted:', { userId, playerId });
 
         const newPlayer = await DatabaseManager.get(
             `SELECT id, name, level, money, current_license FROM players WHERE id = ?`,
