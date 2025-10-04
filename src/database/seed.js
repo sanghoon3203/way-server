@@ -544,6 +544,26 @@ async function seedMerchants() {
             storyRole: 'vendor_only',
             initialStoryNode: null,
             hasActiveStory: 0
+        },
+
+        // 서래 가든 타운 - 회복 물약 전문가 (거래 전용)
+        {
+            id: 'alicegang',
+            name: '앨리스 강',
+            title: '프렌치 아포테케리',
+            type: 'cultural',
+            personality: 'gentle',
+            district: 'seorae',
+            lat: 37.4878,
+            lng: 127.0100,
+            priceModifier: 2.0,
+            negotiationDifficulty: 3,
+            reputationRequirement: 100,
+            requiredLicense: 1,
+            imageFileName: 'Alicegang.png',
+            storyRole: 'vendor_only',
+            initialStoryNode: null,
+            hasActiveStory: 0
         }
     ];
     
