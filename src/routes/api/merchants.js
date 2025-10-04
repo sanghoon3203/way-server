@@ -767,6 +767,64 @@ router.post('/:merchantId/story/progress', async (req, res) => {
     }
 });
 
+/**
+ * 🆕 Get story chapters list for a merchant (Court Record style)
+ * GET /api/merchants/:merchantId/stories/chapters
+ */
+router.get('/:merchantId/stories/chapters', async (req, res) => {
+    try {
+        const { merchantId } = req.params;
+        const playerId = req.user.playerId;
+
+        const StoryService = require('../../services/game/StoryService');
+
+        // Query story nodes grouped by metadata.chapter
+        const nodes = await DatabaseManager.all(`
+            SELECT DISTINCT
+                json_extract(metadata, '$.chapter') as chapter,
+                json_extract(metadata, '$.title') as title,
+                json_extract(metadata, '$.story_type') as story_type,
+                MIN(id) as initial_node_id
+            FROM story_nodes
+            WHERE merchant_id = ?
+            AND json_extract(metadata, '$.chapter') IS NOT NULL
+            GROUP BY json_extract(metadata, '$.chapter')
+            ORDER BY json_extract(metadata, '$.chapter') ASC
+        `, [merchantId]);
+
+        if (!nodes || nodes.length === 0) {
+            return res.json({
+                success: true,
+                data: { chapters: [] }
+            });
+        }
+
+        // Get player progress to check completion status
+        const progress = await StoryService.getPlayerStoryProgress(playerId);
+        const visitedNodes = progress.visitedNodes || [];
+
+        const chapters = nodes.map(node => ({
+            chapter: parseInt(node.chapter),
+            title: node.title,
+            storyType: node.story_type,
+            initialNodeId: node.initial_node_id,
+            completed: visitedNodes.includes(node.initial_node_id)
+        }));
+
+        res.json({
+            success: true,
+            data: { chapters }
+        });
+
+    } catch (error) {
+        logger.error('Failed to fetch story chapters:', error);
+        res.status(500).json({
+            success: false,
+            error: '서버 오류가 발생했습니다'
+        });
+    }
+});
+
 module.exports = router;
 function mapTriggerToCategory(triggerType = '') {
     const normalized = triggerType.toLowerCase();
