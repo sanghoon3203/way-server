@@ -72,9 +72,11 @@ async function runMigrations(options = {}) {
                 try {
                     await DatabaseManager.run(statement);
                 } catch (error) {
-                    // 이미 존재하는 테이블/컬럼 오류는 무시
+                    // 이미 존재하는 테이블/컬럼 오류, 또는 존재하지 않는 컬럼 오류는 무시
+                    // (멱등성 보장: 마이그레이션을 여러 번 실행해도 안전)
                     if (!error.message.includes('already exists') &&
-                        !error.message.includes('duplicate column name')) {
+                        !error.message.includes('duplicate column name') &&
+                        !error.message.includes('no such column')) {
                         console.error(`❌ SQL execution failed in ${file}`);
                         console.error(`Statement: ${statement.substring(0, 100)}...`);
                         throw error;
