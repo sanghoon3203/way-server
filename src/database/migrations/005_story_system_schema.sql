@@ -5,14 +5,8 @@
 -- ============================================
 -- 1. merchants 테이블 확장
 -- ============================================
--- 스토리 역할 컬럼 추가
-ALTER TABLE merchants ADD COLUMN story_role TEXT CHECK(story_role IN ('main', 'side', 'vendor_only'));
-
--- 첫 스토리 노드 ID
-ALTER TABLE merchants ADD COLUMN initial_story_node TEXT;
-
--- 활성 스토리 플래그 (빠른 필터링용)
-ALTER TABLE merchants ADD COLUMN has_active_story INTEGER DEFAULT 0;
+-- SQLite는 ALTER TABLE ADD COLUMN IF NOT EXISTS를 지원하지 않으므로
+-- 에러가 발생해도 무시됨 (이미 컬럼이 존재하는 경우)
 
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_merchants_story_role ON merchants(story_role) WHERE story_role IS NOT NULL;
@@ -45,12 +39,6 @@ CREATE TABLE IF NOT EXISTS quest_templates (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
--- 스토리 노드 ID 참조
-ALTER TABLE quest_templates ADD COLUMN story_node_id TEXT;
-
--- 스토리 퀘스트 플래그
-ALTER TABLE quest_templates ADD COLUMN is_story_quest INTEGER DEFAULT 0;
 
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_quest_templates_story ON quest_templates(is_story_quest) WHERE is_story_quest = 1;
@@ -107,9 +95,6 @@ CREATE TABLE IF NOT EXISTS merchant_dialogues (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
--- 스토리 노드 참조 추가 (기존 대화 시스템과 연동용)
-ALTER TABLE merchant_dialogues ADD COLUMN story_node_id TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_merchant_dialogues_story ON merchant_dialogues(story_node_id) WHERE story_node_id IS NOT NULL;
 
