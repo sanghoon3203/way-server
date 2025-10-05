@@ -114,12 +114,7 @@ router.post('/register', [
                     0, // total_trades
                     0  // total_profit
                 ]
-            },
-            // 초기 인벤토리 슬롯 생성 (20개)
-            ...Array.from({ length: 20 }, (_, i) => ({
-                sql: `INSERT INTO player_inventory (id, player_id, slot_number, item_template_id, quantity) VALUES (?, ?, ?, NULL, 0)`,
-                params: [randomUUID(), playerId, i + 1]
-            }))
+            }
         ]);
         console.info('[REGISTER] user/player/inventory inserted:', { userId, playerId });
 
