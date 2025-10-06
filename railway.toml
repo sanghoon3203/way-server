@@ -2,6 +2,8 @@
   builder = "NIXPACKS"
 
 [deploy]
+  preDeployCommand = "npm run migrate && node ./src/database/initAdmin.js"
+  healthcheckPath = "/health"
   startCommand = "npm start"
   restartPolicyType = "ON_FAILURE"
   restartPolicyMaxRetries = 10
