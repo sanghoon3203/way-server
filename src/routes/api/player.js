@@ -144,7 +144,14 @@ function extractLegacyInventory(playerRow) {
  */
 router.get('/profile', async (req, res) => {
     try {
-        const playerId = req.player.id;
+        const playerId = req.user?.playerId;
+
+        if (!playerId) {
+            return res.status(401).json({
+                success: false,
+                error: '플레이어 정보를 찾을 수 없습니다'
+            });
+        }
         const hasPlayerItemsTable = await playerItemsTableExists();
 
         let player;
