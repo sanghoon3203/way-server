@@ -7,6 +7,8 @@ const { authenticateToken } = require('../../middleware/auth');
 const logger = require('../../config/logger');
 const merchantDialogueLibrary = require('../../constants/merchantDialogues');
 
+const TRADE_DISTANCE_LIMIT_METERS = 400;
+
 const router = express.Router();
 
 // 모든 상인 라우트에 인증 미들웨어 적용
@@ -85,9 +87,9 @@ router.get('/nearby', [
                     merchant.lat, merchant.lng
                 );
 
-                // 거래 가능 여부 확인
-                const canTrade = player.current_license >= merchant.required_license 
+                const meetsRequirement = player.current_license >= merchant.required_license 
                     && player.reputation >= merchant.reputation_requirement;
+                const withinTradeDistance = distance <= TRADE_DISTANCE_LIMIT_METERS;
 
                 return {
                     id: merchant.id,
@@ -101,7 +103,10 @@ router.get('/nearby', [
                         lng: merchant.lng
                     },
                     distance: Math.round(distance),
-                    canTrade,
+                    canTrade: meetsRequirement && withinTradeDistance,
+                    meetsRequirements: meetsRequirement,
+                    withinTradeDistance,
+                    tradeDistanceLimit: TRADE_DISTANCE_LIMIT_METERS,
                     requiredLicense: merchant.required_license,
                     reputationRequirement: merchant.reputation_requirement,
                     priceModifier: merchant.price_modifier,
@@ -117,7 +122,6 @@ router.get('/nearby', [
                     initialStoryNode: merchant.initial_story_node
                 };
             })
-            .filter(merchant => merchant.distance <= radius)
             .sort((a, b) => a.distance - b.distance);
 
         res.json({

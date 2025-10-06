@@ -2,6 +2,8 @@
 const DatabaseManager = require('../../database/DatabaseManager');
 const logger = require('../../config/logger');
 
+const TRADE_DISTANCE_LIMIT_METERS = 400;
+
 /**
  * 위치를 기반으로 서울 구 구분
  */
@@ -93,18 +95,25 @@ module.exports = (socket, io) => {
                 `, [newDistrict]);
 
                 // 구역 변경 이벤트 전송
-                socket.emit('location:district_changed', {
-                    oldDistrict,
-                    newDistrict,
-                    nearbyMerchants: nearbyMerchants.map(m => ({
+                const merchantsWithDistance = nearbyMerchants.map(m => {
+                    const distance = calculateDistance(lat, lng, m.lat, m.lng);
+                    return {
                         id: m.id,
                         name: m.name,
                         type: m.merchant_type,
                         location: { lat: m.lat, lng: m.lng },
-                        distance: Math.round(calculateDistance(lat, lng, m.lat, m.lng)),
+                        distance: Math.round(distance),
+                        withinTradeDistance: distance <= TRADE_DISTANCE_LIMIT_METERS,
+                        tradeDistanceLimit: TRADE_DISTANCE_LIMIT_METERS,
                         imageFileName: m.image_filename,
                         imagePath: m.image_filename ? `/public/merchants/${m.image_filename}` : null
-                    })).filter(m => m.distance <= 1000) // 1km 이내만
+                    };
+                });
+
+                socket.emit('location:district_changed', {
+                    oldDistrict,
+                    newDistrict,
+                    nearbyMerchants: merchantsWithDistance
                 });
 
                 // 새 구역의 다른 플레이어들에게 새 플레이어 입장 알림
@@ -240,14 +249,14 @@ module.exports = (socket, io) => {
                 merchant.lat, merchant.lng
             );
 
-            const canTrade = distance <= 400; // 400m 이내에서만 거래 가능
+            const canTrade = distance <= TRADE_DISTANCE_LIMIT_METERS;
 
             socket.emit('merchant:distance_checked', {
                 merchantId,
                 merchantName: merchant.name,
                 distance: Math.round(distance),
                 canTrade,
-                maxDistance: 400
+                maxDistance: TRADE_DISTANCE_LIMIT_METERS
             });
 
         } catch (error) {

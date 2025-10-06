@@ -1,6 +1,7 @@
 // 📁 src/routes/api/player.js - 플레이어 관련 API 라우트
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const { randomUUID } = require('crypto');
 const DatabaseManager = require('../../database/DatabaseManager');
 const JWTAuth = require('../../middleware/auth');
 const logger = require('../../config/logger');
@@ -10,6 +11,133 @@ const router = express.Router();
 // 모든 플레이어 라우트에 인증 미들웨어 적용
 router.use(JWTAuth.authenticateToken);
 
+let cachedPlayerItemsTableExists = null;
+
+async function playerItemsTableExists() {
+    if (cachedPlayerItemsTableExists !== null) {
+        return cachedPlayerItemsTableExists;
+    }
+
+    try {
+        const row = await DatabaseManager.get(
+            `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
+            ['player_items']
+        );
+
+        cachedPlayerItemsTableExists = !!row;
+    } catch (error) {
+        logger.warn('player_items 테이블 존재 여부 확인 실패, 레거시 스키마로 간주합니다.', error);
+        cachedPlayerItemsTableExists = false;
+    }
+
+    return cachedPlayerItemsTableExists;
+}
+
+function parseLegacyCollection(raw) {
+    if (!raw) {
+        return [];
+    }
+
+    if (Array.isArray(raw)) {
+        return raw;
+    }
+
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                return parsed;
+            }
+            if (parsed && Array.isArray(parsed.items)) {
+                return parsed.items;
+            }
+            if (parsed && Array.isArray(parsed.inventory)) {
+                return parsed.inventory;
+            }
+        } catch (error) {
+            logger.warn('레거시 인벤토리 JSON 파싱 실패', error);
+        }
+        return [];
+    }
+
+    if (typeof raw === 'object') {
+        if (Array.isArray(raw.items)) {
+            return raw.items;
+        }
+        if (Array.isArray(raw.inventory)) {
+            return raw.inventory;
+        }
+
+        // 객체의 값들 중 배열/객체만 추려서 반환
+        return Object.values(raw).filter((value) => typeof value === 'object');
+    }
+
+    return [];
+}
+
+function normalizeLegacyItem(item, { playerId, fallbackStorageType }) {
+    if (!item || typeof item !== 'object') {
+        return null;
+    }
+
+    const quantity = Number(item.quantity ?? item.qty ?? 1) || 1;
+    const storageType = item.storage_type || item.storageType || fallbackStorageType || 'inventory';
+    const basePrice = item.base_price ?? item.basePrice ?? item.price ?? 0;
+    const currentPrice = item.current_price ?? item.currentPrice ?? item.price ?? basePrice;
+
+    const gradeValue = item.grade ?? item.grade_value ?? item.gradeValue ?? item.gradeId ?? item.grade_id;
+    const requiredLicenseValue = item.required_license ?? item.requiredLicense ?? item.license ?? item.licenseLevel;
+
+    return {
+        id: item.id || item.item_instance_id || item.itemInstanceId || randomUUID(),
+        player_id: item.player_id || playerId,
+        item_template_id:
+            item.item_template_id ||
+            item.itemTemplateId ||
+            item.templateId ||
+            item.template_id ||
+            item.itemId ||
+            randomUUID(),
+        quantity,
+        storage_type: storageType,
+        purchase_price: item.purchase_price ?? item.purchasePrice ?? null,
+        purchase_date: item.purchase_date ?? item.purchaseDate ?? null,
+        created_at: item.created_at ?? item.createdAt ?? new Date().toISOString(),
+        name: item.name ?? item.itemName ?? item.title ?? 'Unknown Item',
+        category: item.category ?? item.itemCategory ?? 'general',
+        grade: gradeValue ?? 0,
+        base_price: basePrice,
+        current_price: currentPrice,
+        weight: item.weight ?? 1,
+        description: item.description ?? '',
+        icon_id: item.icon_id ?? item.iconId ?? 1,
+        required_license: requiredLicenseValue ?? 0
+    };
+}
+
+function extractLegacyInventory(playerRow) {
+    const inventoryKeys = ['inventory', 'inventory_json', 'inventoryData', 'inventory_data', 'inventory_items'];
+    const storageKeys = ['storageItems', 'storage_items', 'storage_inventory', 'storageInventory', 'warehouse_items'];
+
+    const rawInventory = inventoryKeys.map((key) => playerRow?.[key]).find((value) => value !== undefined);
+    const rawStorage = storageKeys.map((key) => playerRow?.[key]).find((value) => value !== undefined);
+
+    const parsedInventory = parseLegacyCollection(rawInventory)
+        .map((item) => normalizeLegacyItem(item, { playerId: playerRow.id, fallbackStorageType: 'inventory' }))
+        .filter((item) => !!item);
+
+    const parsedStorage = parseLegacyCollection(rawStorage)
+        .map((item) => normalizeLegacyItem(item, { playerId: playerRow.id, fallbackStorageType: 'storage' }))
+        .filter((item) => !!item);
+
+    return {
+        inventory: parsedInventory,
+        storageItems: parsedStorage,
+        inventoryCount: parsedInventory.length,
+        storageCount: parsedStorage.length
+    };
+}
+
 /**
  * 플레이어 프로필 조회
  * GET /api/player/profile
@@ -17,112 +145,152 @@ router.use(JWTAuth.authenticateToken);
 router.get('/profile', async (req, res) => {
     try {
         const playerId = req.player.id;
+        const hasPlayerItemsTable = await playerItemsTableExists();
 
-        // 플레이어 상세 정보 조회
-        const player = await DatabaseManager.get(`
-            SELECT 
-                p.*,
-                COUNT(pi.id) as inventory_count,
-                COUNT(CASE WHEN pi.storage_type = 'storage' THEN 1 END) as storage_count
-            FROM players p
-            LEFT JOIN player_items pi ON p.id = pi.player_id
-            WHERE p.id = ?
-            GROUP BY p.id
-        `, [playerId]);
+        let player;
+        let inventory = [];
+        let storageItems = [];
+        let inventoryCount = 0;
+        let storageCount = 0;
 
-        if (!player) {
-            return res.status(404).json({
-                success: false,
-                error: '플레이어를 찾을 수 없습니다'
-            });
+        if (hasPlayerItemsTable) {
+            player = await DatabaseManager.get(`
+                SELECT 
+                    p.*,
+                    COUNT(pi.id) as inventory_count,
+                    COUNT(CASE WHEN pi.storage_type = 'storage' THEN 1 END) as storage_count
+                FROM players p
+                LEFT JOIN player_items pi ON p.id = pi.player_id
+                WHERE p.id = ?
+                GROUP BY p.id
+            `, [playerId]);
+
+            if (!player) {
+                return res.status(404).json({
+                    success: false,
+                    error: '플레이어를 찾을 수 없습니다'
+                });
+            }
+
+            try {
+                inventory = await DatabaseManager.all(`
+                    SELECT 
+                        pi.*,
+                        it.name, it.category, it.grade, it.base_price, it.weight, it.description, it.icon_id
+                    FROM player_items pi
+                    JOIN item_templates it ON pi.item_template_id = it.id
+                    WHERE pi.player_id = ? AND pi.storage_type = 'inventory'
+                    ORDER BY pi.created_at DESC
+                `, [playerId]);
+            } catch (error) {
+                logger.warn('인벤토리 조회 실패 - 빈 배열로 대체합니다.', error);
+                inventory = [];
+            }
+
+            try {
+                storageItems = await DatabaseManager.all(`
+                    SELECT 
+                        pi.*,
+                        it.name, it.category, it.grade, it.base_price, it.weight, it.description, it.icon_id
+                    FROM player_items pi
+                    JOIN item_templates it ON pi.item_template_id = it.id
+                    WHERE pi.player_id = ? AND pi.storage_type = 'storage'
+                    ORDER BY pi.created_at DESC
+                `, [playerId]);
+            } catch (error) {
+                logger.warn('창고 아이템 조회 실패 - 빈 배열로 대체합니다.', error);
+                storageItems = [];
+            }
+
+            inventoryCount = player.inventory_count ?? inventory.length;
+            storageCount = player.storage_count ?? storageItems.length;
+        } else {
+            player = await DatabaseManager.get(`
+                SELECT * FROM players WHERE id = ?
+            `, [playerId]);
+
+            if (!player) {
+                return res.status(404).json({
+                    success: false,
+                    error: '플레이어를 찾을 수 없습니다'
+                });
+            }
+
+            const legacy = extractLegacyInventory(player);
+            inventory = legacy.inventory;
+            storageItems = legacy.storageItems;
+            inventoryCount = legacy.inventoryCount;
+            storageCount = legacy.storageCount;
         }
 
-        // 플레이어 인벤토리 조회
-        const inventory = await DatabaseManager.all(`
-            SELECT 
-                pi.*,
-                it.name, it.category, it.grade, it.base_price, it.weight, it.description, it.icon_id
-            FROM player_items pi
-            JOIN item_templates it ON pi.item_template_id = it.id
-            WHERE pi.player_id = ? AND pi.storage_type = 'inventory'
-            ORDER BY pi.created_at DESC
-        `, [playerId]);
-
-        // 창고 아이템 조회
-        const storageItems = await DatabaseManager.all(`
-            SELECT 
-                pi.*,
-                it.name, it.category, it.grade, it.base_price, it.weight, it.description, it.icon_id
-            FROM player_items pi
-            JOIN item_templates it ON pi.item_template_id = it.id
-            WHERE pi.player_id = ? AND pi.storage_type = 'storage'
-            ORDER BY pi.created_at DESC
-        `, [playerId]);
-
-        // 최근 거래 기록
-        const recentTrades = await DatabaseManager.all(`
-            SELECT 
-                tr.*,
-                it.name as item_name,
-                m.name as merchant_name
-            FROM trade_records tr
-            JOIN item_templates it ON tr.item_template_id = it.id
-            JOIN merchants m ON tr.merchant_id = m.id
-            WHERE tr.player_id = ?
-            ORDER BY tr.created_at DESC
-            LIMIT 10
-        `, [playerId]);
+        let recentTrades = [];
+        try {
+            recentTrades = await DatabaseManager.all(`
+                SELECT 
+                    tr.*,
+                    it.name as item_name,
+                    m.name as merchant_name
+                FROM trade_records tr
+                JOIN item_templates it ON tr.item_template_id = it.id
+                JOIN merchants m ON tr.merchant_id = m.id
+                WHERE tr.player_id = ?
+                ORDER BY tr.created_at DESC
+                LIMIT 10
+            `, [playerId]);
+        } catch (error) {
+            logger.warn('최근 거래 조회 실패 - 빈 배열로 대체합니다.', error);
+            recentTrades = [];
+        }
 
         res.json({
             success: true,
             data: {
                 id: player.id,
                 name: player.name,
-                level: player.level,
-                experience: player.experience,
-                money: player.money,
-                trustPoints: player.trust_points,
-                reputation: player.reputation,
-                currentLicense: player.current_license,
-                maxInventorySize: player.max_inventory_size,
-                maxStorageSize: player.max_storage_size,
-                
+                level: player.level ?? 1,
+                experience: player.experience ?? 0,
+                money: player.money ?? 0,
+                trustPoints: player.trust_points ?? 0,
+                reputation: player.reputation ?? 0,
+                currentLicense: player.current_license ?? 0,
+                maxInventorySize: player.max_inventory_size ?? 5,
+                maxStorageSize: player.max_storage_size ?? 50,
+
                 // 스탯
-                statPoints: player.stat_points,
-                skillPoints: player.skill_points,
-                strength: player.strength,
-                intelligence: player.intelligence,
-                charisma: player.charisma,
-                luck: player.luck,
-                
+                statPoints: player.stat_points ?? 0,
+                skillPoints: player.skill_points ?? 0,
+                strength: player.strength ?? 10,
+                intelligence: player.intelligence ?? 10,
+                charisma: player.charisma ?? 10,
+                luck: player.luck ?? 10,
+
                 // 스킬
-                tradingSkill: player.trading_skill,
-                negotiationSkill: player.negotiation_skill,
-                appraisalSkill: player.appraisal_skill,
-                
+                tradingSkill: player.trading_skill ?? 1,
+                negotiationSkill: player.negotiation_skill ?? 1,
+                appraisalSkill: player.appraisal_skill ?? 1,
+
                 // 위치 정보
-                currentLocation: player.current_lat && player.current_lng ? {
-                    lat: player.current_lat,
-                    lng: player.current_lng
-                } : null,
-                
+                currentLocation: player.current_lat && player.current_lng
+                    ? { lat: player.current_lat, lng: player.current_lng }
+                    : null,
+
                 // 거래 통계
-                totalTrades: player.total_trades,
-                totalProfit: player.total_profit,
-                
+                totalTrades: player.total_trades ?? 0,
+                totalProfit: player.total_profit ?? 0,
+
                 // 시간 정보
-                createdAt: player.created_at,
-                lastActive: player.last_active,
-                totalPlayTime: player.total_play_time,
-                
+                createdAt: player.created_at ?? null,
+                lastActive: player.last_active ?? null,
+                totalPlayTime: player.total_play_time ?? 0,
+
                 // 인벤토리 정보
-                inventoryCount: player.inventory_count,
-                storageCount: player.storage_count,
-                inventory: inventory,
-                storageItems: storageItems,
-                
+                inventoryCount,
+                storageCount,
+                inventory,
+                storageItems,
+
                 // 최근 거래
-                recentTrades: recentTrades
+                recentTrades
             }
         });
 
