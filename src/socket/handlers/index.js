@@ -13,9 +13,10 @@ const chatHandler = require('./chatHandler');
  */
 const socketAuth = async (socket, next) => {
     try {
-        const token = socket.handshake.auth.token;
-        
-        if (!token) {
+        const tokenFromQuery = socket.handshake.query?.token;
+        const token = socket.handshake.auth?.token || (Array.isArray(tokenFromQuery) ? tokenFromQuery[0] : tokenFromQuery);
+
+        if (!token || typeof token !== 'string') {
             return next(new Error('Authentication token required'));
         }
 
