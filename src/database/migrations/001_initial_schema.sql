@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS players (
     last_active DATETIME DEFAULT CURRENT_TIMESTAMP,
     total_play_time INTEGER DEFAULT 0,
     daily_play_time INTEGER DEFAULT 0,
+    main_story_progress INTEGER DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
