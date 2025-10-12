@@ -128,6 +128,7 @@ app.use('/api/quests', require('./routes/api/quests'));
 app.use('/api/achievements', require('./routes/api/achievements'));
 app.use('/api/skills', require('./routes/api/skills'));
 app.use('/api/personal-items', require('./routes/api/personal-items'));
+app.use('/api/story', require('./routes/api/story'));
 
 // 게임 클라이언트 라우트 (iOS/Android)
 app.use('/game/quests', require('./routes/game/quests'));
