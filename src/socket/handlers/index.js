@@ -2,6 +2,7 @@
 const jwt = require('jsonwebtoken');
 const DatabaseManager = require('../../database/DatabaseManager');
 const logger = require('../../config/logger');
+const { getDistrictFromLocation } = require('../../utils/districtUtils');
 
 // 개별 핸들러 모듈
 const locationHandler = require('./locationHandler');
@@ -199,22 +200,3 @@ module.exports = (io) => {
     return io;
 };
 
-/**
- * 위치를 기반으로 서울 구 구분하는 함수 (간단한 예시)
- */
-function getDistrictFromLocation(lat, lng) {
-    // 실제로는 더 정확한 지역 구분 로직이 필요
-    // 여기서는 간단한 예시로 위경도 범위로 구분
-    
-    if (lat >= 37.5 && lat < 37.6 && lng >= 127.0 && lng < 127.1) {
-        return 'gangnam';
-    } else if (lat >= 37.5 && lat < 37.6 && lng >= 126.9 && lng < 127.0) {
-        return 'jung';
-    } else if (lat >= 37.5 && lat < 37.6 && lng >= 126.8 && lng < 126.9) {
-        return 'mapo';
-    } else if (lat >= 37.6 && lat < 37.7 && lng >= 126.9 && lng < 127.0) {
-        return 'jongno';
-    } else {
-        return 'other';
-    }
-}

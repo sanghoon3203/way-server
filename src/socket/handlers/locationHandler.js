@@ -1,43 +1,9 @@
 // 📁 src/socket/handlers/locationHandler.js - 위치 관련 Socket.IO 이벤트
 const DatabaseManager = require('../../database/DatabaseManager');
 const logger = require('../../config/logger');
+const { getDistrictFromLocation, calculateDistance } = require('../../utils/districtUtils');
 
 const TRADE_DISTANCE_LIMIT_METERS = 400;
-
-/**
- * 위치를 기반으로 서울 구 구분
- */
-function getDistrictFromLocation(lat, lng) {
-    if (lat >= 37.5 && lat < 37.6 && lng >= 127.0 && lng < 127.1) {
-        return 'gangnam';
-    } else if (lat >= 37.5 && lat < 37.6 && lng >= 126.9 && lng < 127.0) {
-        return 'jung';
-    } else if (lat >= 37.5 && lat < 37.6 && lng >= 126.8 && lng < 126.9) {
-        return 'mapo';
-    } else if (lat >= 37.6 && lat < 37.7 && lng >= 126.9 && lng < 127.0) {
-        return 'jongno';
-    } else {
-        return 'other';
-    }
-}
-
-/**
- * 거리 계산 (하버사인 공식)
- */
-function calculateDistance(lat1, lng1, lat2, lng2) {
-    const R = 6371e3;
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lng2-lng1) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c;
-}
 
 /**
  * 위치 관련 이벤트 핸들러

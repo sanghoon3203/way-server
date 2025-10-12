@@ -53,11 +53,15 @@ class AdminCRUDService {
                         { value: 'antiques', label: '골동품' }
                     ], label: '상인 유형' },
                     { name: 'district', type: 'select', required: true, options: [
-                        { value: 'gangnam', label: '강남구' },
-                        { value: 'jung', label: '중구' },
-                        { value: 'mapo', label: '마포구' },
-                        { value: 'jongno', label: '종로구' },
-                        { value: 'yongsan', label: '용산구' }
+                        { value: '강남구', label: '강남구' },
+                        { value: '서초구', label: '서초구' },
+                        { value: '송파구', label: '송파구' },
+                        { value: '강동구', label: '강동구' },
+                        { value: '관악구', label: '관악구' },
+                        { value: '종로구', label: '종로구' },
+                        { value: '중구', label: '중구' },
+                        { value: '마포구', label: '마포구' },
+                        { value: '기타', label: '기타' }
                     ], label: '지역' },
                     { name: 'lat', type: 'number', step: 0.000001, required: true, label: '위도' },
                     { name: 'lng', type: 'number', step: 0.000001, required: true, label: '경도' },

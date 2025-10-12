@@ -115,12 +115,18 @@ function getMerchantProfile(identifier) {
     }
 
     const normalized = String(identifier).toLowerCase().replace(/\s+/g, '');
+    const sanitized = normalized.replace(/^merchant_/, '');
+
+    if (merchantProfiles.has(sanitized)) {
+        return merchantProfiles.get(sanitized);
+    }
+
     if (merchantProfiles.has(normalized)) {
         return merchantProfiles.get(normalized);
     }
 
     for (const profile of merchantProfiles.values()) {
-        if (profile.slug === normalized || profile.nameKey === normalized) {
+        if (profile.slug === sanitized || profile.slug === normalized || profile.nameKey === sanitized || profile.nameKey === normalized) {
             return profile;
         }
     }
@@ -391,16 +397,16 @@ async function seedMerchants() {
     }
     
     const merchants = [
-        // 마포 크레이티브 허브 - 천사혈통 염력 전문가 (Tier 1: 메인 스토리)
+        // 마포 크리에이티브 허브 - 천사 혈통 염력 전문가
         {
-            id: 'mari',
+            id: 'merchant_mari',
             name: '마리',
             title: '염력 부여 전문가',
             type: 'enhancement',
             personality: 'cheerful',
-            district: 'mapo',
-            lat: 37.5219,
-            lng: 126.8954,
+            district: '마포구',
+            lat: 37.548748,
+            lng: 126.92207,
             priceModifier: 1.4,
             negotiationDifficulty: 2,
             reputationRequirement: 0,
@@ -410,16 +416,16 @@ async function seedMerchants() {
             hasActiveStory: 1
         },
 
-        // 메트로 폴리스 - 성스러운 아이템 전문가 (Tier 2: 사이드 스토리)
+        // 명동 성당 - 성스러운 아이템 전문가
         {
-            id: 'catarinachoi',
+            id: 'merchant_catarinachoi',
             name: '카타리나 최',
             title: '성당 프리스트',
             type: 'religious',
             personality: 'protective',
-            district: 'metro',
-            lat: 37.5012,
-            lng: 127.0396,
+            district: '중구',
+            lat: 37.563605,
+            lng: 126.986893,
             priceModifier: 1.8,
             negotiationDifficulty: 1,
             reputationRequirement: 25,
@@ -429,16 +435,16 @@ async function seedMerchants() {
             hasActiveStory: 1
         },
 
-        // 아카데믹 가든 - 과학 임플란트 전문가 (Tier 2: 사이드 스토리)
+        // 서울대 연구구역 - 과학 임플란트 전문가
         {
-            id: 'kimsehwui',
+            id: 'merchant_kimsehwui',
             name: '김세휘',
             title: '임플란트 연구자',
             type: 'technology',
             personality: 'intellectual',
-            district: 'academic',
-            lat: 37.5636,
-            lng: 126.9970,
+            district: '관악구',
+            lat: 37.460369,
+            lng: 126.95175,
             priceModifier: 2.5,
             negotiationDifficulty: 3,
             reputationRequirement: 50,
@@ -449,16 +455,16 @@ async function seedMerchants() {
             hasActiveStory: 1
         },
 
-        // 네오 시부야 - 사이버펑크 스타일 (거래 전용)
+        // 압구정 로데오 - 사이버펑크 스타일
         {
-            id: 'seoyena',
+            id: 'merchant_seoyena',
             name: '서예나',
             title: '네오-시티 스타일리스트',
             type: 'fashion',
             personality: 'cold',
-            district: 'neo_shibuya',
-            lat: 37.5665,
-            lng: 126.9780,
+            district: '강남구',
+            lat: 37.527941,
+            lng: 127.038806,
             priceModifier: 1.3,
             negotiationDifficulty: 4,
             reputationRequirement: 100,
@@ -468,16 +474,16 @@ async function seedMerchants() {
             hasActiveStory: 0
         },
 
-        // 레이크사이드 원더랜드 - 드림크리스탈 전문가 (거래 전용)
+        // 석촌호수 - 드림크리스탈 전문가
         {
-            id: 'anipark',
+            id: 'merchant_anipark',
             name: '애니박',
             title: '드림크리스탈 공주',
             type: 'fantasy',
             personality: 'dreamy',
-            district: 'lakeside',
-            lat: 37.5311,
-            lng: 127.1011,
+            district: '송파구',
+            lat: 37.511169,
+            lng: 127.098242,
             priceModifier: 3.0,
             negotiationDifficulty: 2,
             reputationRequirement: 200,
@@ -488,16 +494,16 @@ async function seedMerchants() {
             hasActiveStory: 0
         },
 
-        // 이스트리버빌리지 - 커피하우스 운영 (거래 전용)
+        // 천호동 테라 커피하우스 - 커피하우스 운영
         {
-            id: 'jinbaekho',
+            id: 'merchant_jinbaekho',
             name: '진백호',
             title: '테라 커피하우스 주인',
             type: 'beverages',
             personality: 'cunning',
-            district: 'eastriver',
-            lat: 37.5217,  // 올림픽공원 근처
-            lng: 127.1224,
+            district: '강동구',
+            lat: 37.540264,
+            lng: 127.123698,
             priceModifier: 1.6,
             negotiationDifficulty: 4,
             reputationRequirement: 75,
@@ -507,16 +513,16 @@ async function seedMerchants() {
             hasActiveStory: 0
         },
 
-        // 이스트리버빌리지 - 대장장이 무기 제작 (거래 전용)
+        // 천호동 크래프트타운 - 대장장이 무기 제작
         {
-            id: 'jubulsu',
+            id: 'merchant_jubulsu',
             name: '주불수',
             title: '크래프트타운 대장장이',
             type: 'weapons',
             personality: 'tough',
-            district: 'eastriver',
-            lat: 37.5217,  // 올림픽공원 근처
-            lng: 127.1224,
+            district: '강동구',
+            lat: 37.540764,
+            lng: 127.124198,
             priceModifier: 2.2,
             negotiationDifficulty: 5,
             reputationRequirement: 150,
@@ -527,16 +533,16 @@ async function seedMerchants() {
             hasActiveStory: 0
         },
 
-        // 시간의 회랑 - 시간 보안 장비 (거래 전용)
+        // 경복궁 시간의 회랑 - 시간 보안 장비
         {
-            id: 'kijuri',
+            id: 'merchant_kijuri',
             name: '기주리',
             title: '시간 보안관',
             type: 'temporal',
             personality: 'strict',
-            district: 'time_corridor',
-            lat: 37.5729,
-            lng: 126.9794,
+            district: '종로구',
+            lat: 37.575911,
+            lng: 126.976863,
             priceModifier: 2.8,
             negotiationDifficulty: 5,
             reputationRequirement: 300,
@@ -547,16 +553,16 @@ async function seedMerchants() {
             hasActiveStory: 0
         },
 
-        // 서래 가든 타운 - 회복 물약 전문가 (거래 전용)
+        // 서래마을 - 회복 물약 전문가
         {
-            id: 'alicegang',
+            id: 'merchant_alicegang',
             name: '앨리스 강',
             title: '프렌치 아포테케리',
             type: 'cultural',
             personality: 'gentle',
-            district: 'seorae',
-            lat: 37.4878,
-            lng: 127.0100,
+            district: '서초구',
+            lat: 37.491451,
+            lng: 127.003281,
             priceModifier: 2.0,
             negotiationDifficulty: 3,
             reputationRequirement: 100,
@@ -777,7 +783,7 @@ async function seedStoryNodes() {
         {
             id: 'story_mari_01',
             node_type: 'dialogue',
-            merchant_id: 'mari',
+            merchant_id: 'merchant_mari',
             content: JSON.stringify({
                 speaker: '마리',
                 text: '어머, 새로운 얼굴이네요! 이 동네에서 처음 보는 것 같은데... 혹시 거래하러 오신 건가요?',
@@ -808,7 +814,7 @@ async function seedStoryNodes() {
         {
             id: 'story_mari_02',
             node_type: 'dialogue',
-            merchant_id: 'mari',
+            merchant_id: 'merchant_mari',
             content: JSON.stringify({
                 speaker: '마리',
                 text: '저는 염력 부여 전문가예요. 평범한 물건에 특별한 힘을 불어넣어 드리죠. 아, 물론 거래도 하고요!',
@@ -832,7 +838,7 @@ async function seedStoryNodes() {
         {
             id: 'story_mari_03',
             node_type: 'quest_gate',
-            merchant_id: 'mari',
+            merchant_id: 'merchant_mari',
             content: JSON.stringify({
                 speaker: '마리',
                 text: '그럼 간단한 거래부터 시작해볼까요? 제가 첫 거래는 특별 할인해드릴게요!',
@@ -863,7 +869,7 @@ async function seedStoryNodes() {
         {
             id: 'story_katarina_01',
             node_type: 'dialogue',
-            merchant_id: 'catarinachoi',
+            merchant_id: 'merchant_catarinachoi',
             content: JSON.stringify({
                 speaker: '카타리나 최',
                 text: '신의 축복이 함께 하기를. 어떤 일로 성당을 찾아주셨나요?',
@@ -895,7 +901,7 @@ async function seedStoryNodes() {
         {
             id: 'story_katarina_02',
             node_type: 'dialogue',
-            merchant_id: 'catarinachoi',
+            merchant_id: 'merchant_catarinachoi',
             content: JSON.stringify({
                 speaker: '카타리나 최',
                 text: '성스러운 힘은 순수한 마음을 가진 이들에게만 응답합니다. 당신의 마음이 진실하다면, 제가 도와드리겠습니다.',
@@ -924,7 +930,7 @@ async function seedStoryNodes() {
         {
             id: 'story_kim_01',
             node_type: 'dialogue',
-            merchant_id: 'kimsehwui',
+            merchant_id: 'merchant_kimsehwui',
             content: JSON.stringify({
                 speaker: '김세휘',
                 text: '실험실에 찾아온 사람이 있다니 드물군요. 임플란트 기술에 관심이 있으신가요?',
@@ -957,7 +963,7 @@ async function seedStoryNodes() {
         {
             id: 'story_kim_02',
             node_type: 'dialogue',
-            merchant_id: 'kimsehwui',
+            merchant_id: 'merchant_kimsehwui',
             content: JSON.stringify({
                 speaker: '김세휘',
                 text: '임플란트는 인간의 한계를 넘어서는 기술입니다. 하지만 책임감 없이 사용하면 위험할 수 있죠. 당신은 그럴 준비가 되어 있나요?',
@@ -1206,11 +1212,11 @@ async function seedStoryQuests() {
             category: 'story',
             type: 'dialogue',
             level_requirement: 1,
-            required_merchant: 'mari',
+            required_merchant: 'merchant_mari',
             objectives: JSON.stringify([
                 {
                     type: 'visit_merchant',
-                    target: 'mari',
+                    target: 'merchant_mari',
                     count: 1,
                     description: '마리 방문하기'
                 },
@@ -1240,7 +1246,7 @@ async function seedStoryQuests() {
             category: 'story',
             type: 'dialogue',
             level_requirement: 5,
-            required_merchant: 'catarinachoi',
+            required_merchant: 'merchant_catarinachoi',
             prerequisites: JSON.stringify({
                 reputation_min: 25,
                 completed_quests: ['quest_story_mari_tutorial']
@@ -1248,7 +1254,7 @@ async function seedStoryQuests() {
             objectives: JSON.stringify([
                 {
                     type: 'visit_merchant',
-                    target: 'catarinachoi',
+                    target: 'merchant_catarinachoi',
                     count: 1,
                     description: '카타리나 최 방문하기'
                 },
@@ -1279,7 +1285,7 @@ async function seedStoryQuests() {
             category: 'story',
             type: 'dialogue',
             level_requirement: 10,
-            required_merchant: 'kimsehwui',
+            required_merchant: 'merchant_kimsehwui',
             prerequisites: JSON.stringify({
                 reputation_min: 50,
                 license_min: 1,
@@ -1288,7 +1294,7 @@ async function seedStoryQuests() {
             objectives: JSON.stringify([
                 {
                     type: 'visit_merchant',
-                    target: 'kimsehwui',
+                    target: 'merchant_kimsehwui',
                     count: 1,
                     description: '김세휘 방문하기'
                 },
