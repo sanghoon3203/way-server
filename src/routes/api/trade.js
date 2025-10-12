@@ -8,6 +8,32 @@ const logger = require('../../config/logger');
 
 const router = express.Router();
 
+const MERCHANT_PERMIT_TEMPLATES = [
+    'Merchantpermit_1',
+    'Merchantpermit_2',
+    'Merchantpermit_3',
+    'Merchantpermit_4'
+];
+
+const GRADE_CAP_BY_TIER = {
+    1: 0, // common
+    2: 1, // intermediate
+    3: 2, // advanced
+    4: 5  // rare, legendary, special
+};
+
+const REQUIRED_TIER_FOR_GRADE = {
+    0: 1,
+    1: 2,
+    2: 3,
+    3: 4,
+    4: 4,
+    5: 4
+};
+
+const getGradeCapForTier = (tier) => GRADE_CAP_BY_TIER[tier] ?? -1;
+const getRequiredTierForGrade = (grade) => REQUIRED_TIER_FOR_GRADE[grade] ?? 4;
+
 // 모든 거래 라우트에 인증 미들웨어 적용
 router.use(authenticateToken);
 
@@ -54,18 +80,48 @@ router.post('/execute', [
             });
         }
 
-        // 거래 권한 확인
-        if (player.current_license < merchant.required_license) {
+        // 관계도 및 허가증 확인
+        const relationship = await DatabaseManager.get(
+            'SELECT trust_level FROM merchant_relationships WHERE player_id = ? AND merchant_id = ?',
+            [playerId, merchantId]
+        );
+
+        const relationshipStage = relationship
+            ? Math.max(0, Math.min(relationship.trust_level ?? 0, 4))
+            : 0;
+
+        if (relationshipStage === 0) {
             return res.status(403).json({
                 success: false,
-                error: '라이센스 레벨이 부족합니다'
+                error: '해당 상인과의 관계가 부족합니다',
+                code: 'RELATIONSHIP_STAGE_LOCKED',
+                data: { relationshipStage }
             });
         }
 
-        if (player.reputation < merchant.reputation_requirement) {
+        const permitRow = await DatabaseManager.get(`
+            SELECT MAX(
+                CASE item_template_id
+                    WHEN 'Merchantpermit_1' THEN 1
+                    WHEN 'Merchantpermit_2' THEN 2
+                    WHEN 'Merchantpermit_3' THEN 3
+                    WHEN 'Merchantpermit_4' THEN 4
+                    ELSE 0
+                END
+            ) AS permitTier
+            FROM player_personal_items
+            WHERE player_id = ?
+              AND item_template_id IN (?, ?, ?, ?)
+        `, [playerId, ...MERCHANT_PERMIT_TEMPLATES]);
+
+        const permitTier = Number(permitRow?.permitTier ?? 0);
+
+        if (permitTier < 1) {
             return res.status(403).json({
                 success: false,
-                error: '평판이 부족합니다'
+                error: '상인 허가증이 필요합니다',
+                code: 'PERMIT_REQUIRED',
+                data: { permitTier }
             });
         }
 
@@ -80,6 +136,40 @@ router.post('/execute', [
                 success: false,
                 error: '아이템을 찾을 수 없습니다'
             });
+        }
+
+        const permitMaxGrade = getGradeCapForTier(permitTier);
+        const relationshipMaxGrade = getGradeCapForTier(relationshipStage);
+        const effectiveMaxGrade = Math.min(permitMaxGrade, relationshipMaxGrade);
+
+        if (effectiveMaxGrade < itemTemplate.grade) {
+            if (permitMaxGrade < itemTemplate.grade) {
+                const requiredPermitTier = getRequiredTierForGrade(itemTemplate.grade);
+                return res.status(403).json({
+                    success: false,
+                    error: '상인 허가증 등급이 부족합니다',
+                    code: 'PERMIT_TIER_LOCKED',
+                    data: {
+                        permitTier,
+                        requiredPermitTier,
+                        itemGrade: itemTemplate.grade
+                    }
+                });
+            }
+
+            if (relationshipMaxGrade < itemTemplate.grade) {
+                const requiredRelationshipStage = getRequiredTierForGrade(itemTemplate.grade);
+                return res.status(403).json({
+                    success: false,
+                    error: '상인과의 관계도가 부족합니다',
+                    code: 'RELATIONSHIP_TIER_LOCKED',
+                    data: {
+                        relationshipStage,
+                        requiredRelationshipStage,
+                        itemGrade: itemTemplate.grade
+                    }
+                });
+            }
         }
 
         let finalPrice, experienceGained, profit = 0;
@@ -233,23 +323,27 @@ router.post('/execute', [
             params: [tradeRecordId, playerId, merchantId, itemTemplateId, tradeType, quantity, Math.round(finalPrice / quantity), finalPrice, profit, experienceGained]
         });
 
-        // 상인 관계 업데이트
-        const relationshipChange = { friendship: tradeType === 'buy' ? 2 : 1, trust: 1 };
+        // 상인 관계 업데이트 (신뢰 단계는 서브 퀘스트를 통해 상승)
+        const relationshipChange = { friendship: tradeType === 'buy' ? 2 : 1 };
         tradeQueries.push({
-            sql: `INSERT OR REPLACE INTO merchant_relationships 
-                  (id, player_id, merchant_id, friendship_points, trust_level, total_trades, total_spent, last_interaction)
-                  VALUES (?, ?, ?, 
-                         COALESCE((SELECT friendship_points FROM merchant_relationships WHERE player_id = ? AND merchant_id = ?), 0) + ?,
-                         COALESCE((SELECT trust_level FROM merchant_relationships WHERE player_id = ? AND merchant_id = ?), 0) + ?,
-                         COALESCE((SELECT total_trades FROM merchant_relationships WHERE player_id = ? AND merchant_id = ?), 0) + 1,
-                         COALESCE((SELECT total_spent FROM merchant_relationships WHERE player_id = ? AND merchant_id = ?), 0) + ?,
-                         CURRENT_TIMESTAMP)`,
+            sql: `INSERT OR IGNORE INTO merchant_relationships
+                  (id, player_id, merchant_id, friendship_points, trust_level, total_trades, total_spent, stage_progress, last_interaction)
+                  VALUES (?, ?, ?, 0, 0, 0, 0, 0, CURRENT_TIMESTAMP)`,
+            params: [randomUUID(), playerId, merchantId]
+        });
+
+        tradeQueries.push({
+            sql: `UPDATE merchant_relationships
+                  SET friendship_points = friendship_points + ?,
+                      total_trades = total_trades + 1,
+                      total_spent = total_spent + ?,
+                      last_interaction = CURRENT_TIMESTAMP
+                  WHERE player_id = ? AND merchant_id = ?`,
             params: [
-                randomUUID(), playerId, merchantId,
-                playerId, merchantId, relationshipChange.friendship,
-                playerId, merchantId, relationshipChange.trust,
-                playerId, merchantId,
-                playerId, merchantId, tradeType === 'buy' ? finalPrice : 0
+                relationshipChange.friendship,
+                tradeType === 'buy' ? finalPrice : 0,
+                playerId,
+                merchantId
             ]
         });
 

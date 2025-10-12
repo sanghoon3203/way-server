@@ -1,6 +1,6 @@
 // 📁 src/routes/api/merchants.js - 상인 관련 API 라우트
 const express = require('express');
-const { query, validationResult } = require('express-validator');
+const { query, body, validationResult } = require('express-validator');
 const { randomUUID } = require('crypto');
 const DatabaseManager = require('../../database/DatabaseManager');
 const { authenticateToken } = require('../../middleware/auth');
@@ -10,6 +10,48 @@ const merchantDialogueLibrary = require('../../constants/merchantDialogues');
 const TRADE_DISTANCE_LIMIT_METERS = 400;
 
 const router = express.Router();
+
+const MERCHANT_PERMIT_TEMPLATES = [
+    'Merchantpermit_1',
+    'Merchantpermit_2',
+    'Merchantpermit_3',
+    'Merchantpermit_4'
+];
+
+const GRADE_CAP_BY_TIER = {
+    1: 0,
+    2: 1,
+    3: 2,
+    4: 5
+};
+
+const REQUIRED_TIER_FOR_GRADE = {
+    0: 1,
+    1: 2,
+    2: 3,
+    3: 4,
+    4: 4,
+    5: 4
+};
+
+const getGradeCapForTier = (tier) => GRADE_CAP_BY_TIER[tier] ?? -1;
+const getRequiredTierForGrade = (grade) => REQUIRED_TIER_FOR_GRADE[grade] ?? 4;
+
+const RELATIONSHIP_MAX_STAGE = 4;
+const STAGE_REQUIREMENTS = {
+    0: 3,
+    1: 3,
+    2: 5,
+    3: 5
+};
+
+const clampStage = (stage) => Math.max(0, Math.min(stage ?? 0, RELATIONSHIP_MAX_STAGE));
+const getStageRequirement = (stage) => {
+    if (stage >= RELATIONSHIP_MAX_STAGE) {
+        return 0;
+    }
+    return STAGE_REQUIREMENTS[stage] ?? 0;
+};
 
 // 모든 상인 라우트에 인증 미들웨어 적용
 router.use(authenticateToken);
@@ -67,6 +109,39 @@ router.get('/nearby', [
             [playerId]
         );
 
+        // 플레이어 허가증 단계
+        const permitRow = await DatabaseManager.get(`
+            SELECT MAX(
+                CASE item_template_id
+                    WHEN 'Merchantpermit_1' THEN 1
+                    WHEN 'Merchantpermit_2' THEN 2
+                    WHEN 'Merchantpermit_3' THEN 3
+                    WHEN 'Merchantpermit_4' THEN 4
+                    ELSE 0
+                END
+            ) AS permitTier
+            FROM player_personal_items
+            WHERE player_id = ?
+              AND item_template_id IN (?, ?, ?, ?)
+        `, [playerId, ...MERCHANT_PERMIT_TEMPLATES]);
+
+        const permitTier = Number(permitRow?.permitTier ?? 0);
+
+        // 관계도 맵 구성
+        const relationshipRows = await DatabaseManager.all(`
+            SELECT merchant_id, trust_level, stage_progress
+            FROM merchant_relationships
+            WHERE player_id = ?
+        `, [playerId]);
+
+        const relationshipMap = new Map();
+        for (const row of relationshipRows) {
+            relationshipMap.set(row.merchant_id, {
+                stage: clampStage(row.trust_level),
+                progress: row.stage_progress ?? 0
+            });
+        }
+
         // 모든 활성 상인 조회
         const merchants = await DatabaseManager.all(`
             SELECT 
@@ -87,9 +162,21 @@ router.get('/nearby', [
                     merchant.lat, merchant.lng
                 );
 
-                const meetsRequirement = player.current_license >= merchant.required_license 
-                    && player.reputation >= merchant.reputation_requirement;
+                const relation = relationshipMap.get(merchant.id) || { stage: 0, progress: 0 };
+                const relationshipStage = clampStage(relation.stage);
+                const stageProgress = relation.progress ?? 0;
+                const stageRequirement = getStageRequirement(relationshipStage);
+                const relationshipMaxGrade = getGradeCapForTier(relationshipStage);
+                const permitMaxGrade = getGradeCapForTier(permitTier);
+                const effectiveMaxGrade = (relationshipMaxGrade < 0 || permitMaxGrade < 0)
+                    ? -1
+                    : Math.min(relationshipMaxGrade, permitMaxGrade);
+
                 const withinTradeDistance = distance <= TRADE_DISTANCE_LIMIT_METERS;
+                const meetsRelationship = relationshipStage > 0;
+                const meetsPermit = permitTier > 0;
+                const canTrade = meetsRelationship && meetsPermit && withinTradeDistance;
+                const meetsRequirements = meetsRelationship && meetsPermit;
 
                 return {
                     id: merchant.id,
@@ -103,8 +190,8 @@ router.get('/nearby', [
                         lng: merchant.lng
                     },
                     distance: Math.round(distance),
-                    canTrade: meetsRequirement && withinTradeDistance,
-                    meetsRequirements: meetsRequirement,
+                    canTrade,
+                    meetsRequirements,
                     withinTradeDistance,
                     tradeDistanceLimit: TRADE_DISTANCE_LIMIT_METERS,
                     requiredLicense: merchant.required_license,
@@ -119,7 +206,16 @@ router.get('/nearby', [
                     // 🆕 Story system fields
                     storyRole: merchant.story_role,
                     hasActiveStory: merchant.has_active_story === 1,
-                    initialStoryNode: merchant.initial_story_node
+                    initialStoryNode: merchant.initial_story_node,
+
+                    // 관계도 / 허가증 정보
+                    relationshipStage,
+                    stageProgress,
+                    stageRequirement,
+                    relationshipMaxGrade,
+                    permitTier,
+                    permitMaxGrade,
+                    effectiveMaxGrade
                 };
             })
             .sort((a, b) => a.distance - b.distance);
@@ -185,6 +281,35 @@ router.get('/:merchantId', async (req, res) => {
             WHERE player_id = ? AND merchant_id = ?
         `, [playerId, merchantId]);
 
+        const permitRow = await DatabaseManager.get(`
+            SELECT MAX(
+                CASE item_template_id
+                    WHEN 'Merchantpermit_1' THEN 1
+                    WHEN 'Merchantpermit_2' THEN 2
+                    WHEN 'Merchantpermit_3' THEN 3
+                    WHEN 'Merchantpermit_4' THEN 4
+                    ELSE 0
+                END
+            ) AS permitTier
+            FROM player_personal_items
+            WHERE player_id = ?
+              AND item_template_id IN (?, ?, ?, ?)
+        `, [playerId, ...MERCHANT_PERMIT_TEMPLATES]);
+
+        const permitTier = Number(permitRow?.permitTier ?? 0);
+        const relationshipStage = relationship
+            ? clampStage(relationship.trust_level ?? 0)
+            : 0;
+        const stageProgress = relationship?.stage_progress ?? 0;
+        const stageRequirement = getStageRequirement(relationshipStage);
+
+        const permitMaxGrade = getGradeCapForTier(permitTier);
+        const relationshipMaxGrade = getGradeCapForTier(relationshipStage);
+        const effectiveMaxGrade = (permitMaxGrade < 0 || relationshipMaxGrade < 0)
+            ? -1
+            : Math.min(permitMaxGrade, relationshipMaxGrade);
+        const canTrade = relationshipStage > 0 && permitTier > 0;
+
         // 상인 선호도 정보 조회
         const preferences = await DatabaseManager.all(`
             SELECT category, preference_type 
@@ -199,6 +324,28 @@ router.get('/:merchantId', async (req, res) => {
         const dislikedCategories = preferences
             .filter(p => p.preference_type === 'disliked')
             .map(p => p.category);
+
+        const relationshipPayload = relationship ? {
+            friendshipPoints: relationship.friendship_points,
+            trustLevel: relationshipStage,
+            stage: relationshipStage,
+            stageProgress,
+            stageRequirement,
+            totalTrades: relationship.total_trades,
+            totalSpent: relationship.total_spent,
+            lastInteraction: relationship.last_interaction,
+            notes: relationship.notes
+        } : {
+            friendshipPoints: 0,
+            trustLevel: 0,
+            stage: 0,
+            stageProgress: 0,
+            stageRequirement: getStageRequirement(0),
+            totalTrades: 0,
+            totalSpent: 0,
+            lastInteraction: null,
+            notes: null
+        };
 
         res.json({
             success: true,
@@ -247,27 +394,297 @@ router.get('/:merchantId', async (req, res) => {
                     lastUpdated: item.last_updated
                 })),
                 
-                // 관계 정보
-                relationship: relationship ? {
-                    friendshipPoints: relationship.friendship_points,
-                    trustLevel: relationship.trust_level,
-                    totalTrades: relationship.total_trades,
-                    totalSpent: relationship.total_spent,
-                    lastInteraction: relationship.last_interaction,
-                    notes: relationship.notes
-                } : {
-                    friendshipPoints: 0,
-                    trustLevel: 0,
-                    totalTrades: 0,
-                    totalSpent: 0,
-                    lastInteraction: null,
-                    notes: null
+                // 관계 정보 및 접근 제어
+                relationship: relationshipPayload,
+                accessControl: {
+                    relationshipStage,
+                    relationshipMaxGrade,
+                    stageProgress,
+                    stageRequirement,
+                    permitTier,
+                    permitMaxGrade,
+                    effectiveMaxGrade,
+                    canTrade,
+                    requiredTierForGrade: REQUIRED_TIER_FOR_GRADE
                 }
             }
         });
 
     } catch (error) {
         logger.error('상인 상세 조회 실패:', error);
+        res.status(500).json({
+            success: false,
+            error: '서버 오류가 발생했습니다'
+        });
+    }
+});
+
+/**
+ * 상인 관계도 진행 반영 (서브 퀘스트 완료 등)
+ * POST /api/merchants/:merchantId/relationship/progress
+ */
+router.post('/:merchantId/relationship/progress', [
+    body('questId').notEmpty().withMessage('퀘스트 ID가 필요합니다')
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                error: '요청 데이터가 유효하지 않습니다',
+                details: errors.array()
+            });
+        }
+
+        const { merchantId } = req.params;
+        const { questId } = req.body;
+        const playerId = req.user.playerId;
+
+        // 기본 관계 레코드 보장
+        await DatabaseManager.run(`
+            INSERT OR IGNORE INTO merchant_relationships
+            (id, player_id, merchant_id, friendship_points, trust_level, total_trades, total_spent, stage_progress, last_interaction)
+            VALUES (?, ?, ?, 0, 0, 0, 0, 0, CURRENT_TIMESTAMP)
+        `, [randomUUID(), playerId, merchantId]);
+
+        const relationship = await DatabaseManager.get(`
+            SELECT trust_level, stage_progress
+            FROM merchant_relationships
+            WHERE player_id = ? AND merchant_id = ?
+        `, [playerId, merchantId]);
+
+        if (!relationship) {
+            return res.status(404).json({
+                success: false,
+                error: '상인 관계 정보를 찾을 수 없습니다'
+            });
+        }
+
+        const currentStage = clampStage(relationship.trust_level ?? 0);
+        const currentProgress = relationship.stage_progress ?? 0;
+        const stageRequirement = getStageRequirement(currentStage);
+
+        // 최대 단계인 경우
+        if (currentStage >= RELATIONSHIP_MAX_STAGE) {
+            const permitRow = await DatabaseManager.get(`
+                SELECT MAX(
+                    CASE item_template_id
+                        WHEN 'Merchantpermit_1' THEN 1
+                        WHEN 'Merchantpermit_2' THEN 2
+                        WHEN 'Merchantpermit_3' THEN 3
+                        WHEN 'Merchantpermit_4' THEN 4
+                        ELSE 0
+                    END
+                ) AS permitTier
+                FROM player_personal_items
+                WHERE player_id = ?
+                  AND item_template_id IN (?, ?, ?, ?)
+            `, [playerId, ...MERCHANT_PERMIT_TEMPLATES]);
+
+            const permitTier = Number(permitRow?.permitTier ?? 0);
+
+            return res.json({
+                success: true,
+                message: '관계도가 이미 최대 단계입니다.',
+                data: {
+                    merchantId,
+                    questId,
+                    relationshipStage: currentStage,
+                    stageProgress: 0,
+                    stageRequirement: 0,
+                    permitTier,
+                    canTrade: currentStage > 0 && permitTier > 0
+                }
+            });
+        }
+
+        // 퀘스트 중복 처리 체크
+        try {
+            await DatabaseManager.run(`
+                INSERT INTO merchant_relationship_quest_log (id, player_id, merchant_id, quest_id, stage)
+                VALUES (?, ?, ?, ?, ?)
+            `, [randomUUID(), playerId, merchantId, questId, currentStage]);
+        } catch (error) {
+            if (error.message && error.message.includes('UNIQUE')) {
+                const permitRow = await DatabaseManager.get(`
+                    SELECT MAX(
+                        CASE item_template_id
+                            WHEN 'Merchantpermit_1' THEN 1
+                            WHEN 'Merchantpermit_2' THEN 2
+                            WHEN 'Merchantpermit_3' THEN 3
+                            WHEN 'Merchantpermit_4' THEN 4
+                            ELSE 0
+                        END
+                    ) AS permitTier
+                    FROM player_personal_items
+                    WHERE player_id = ?
+                      AND item_template_id IN (?, ?, ?, ?)
+                `, [playerId, ...MERCHANT_PERMIT_TEMPLATES]);
+
+                const permitTier = Number(permitRow?.permitTier ?? 0);
+
+                return res.json({
+                    success: true,
+                    message: '이미 반영된 퀘스트입니다.',
+                    data: {
+                        merchantId,
+                        questId,
+                        relationshipStage: currentStage,
+                        stageProgress: currentProgress,
+                        stageRequirement,
+                        permitTier,
+                        canTrade: currentStage > 0 && permitTier > 0
+                    }
+                });
+            }
+            throw error;
+        }
+
+        let newStage = currentStage;
+        let newProgress = currentProgress + 1;
+
+        if (stageRequirement > 0 && newProgress >= stageRequirement && currentStage < RELATIONSHIP_MAX_STAGE) {
+            newStage = currentStage + 1;
+            newProgress = 0;
+            await DatabaseManager.run(`
+                UPDATE merchant_relationships
+                SET trust_level = ?, stage_progress = ?, last_interaction = CURRENT_TIMESTAMP
+                WHERE player_id = ? AND merchant_id = ?
+            `, [newStage, newProgress, playerId, merchantId]);
+        } else {
+            await DatabaseManager.run(`
+                UPDATE merchant_relationships
+                SET stage_progress = ?, last_interaction = CURRENT_TIMESTAMP
+                WHERE player_id = ? AND merchant_id = ?
+            `, [newProgress, playerId, merchantId]);
+        }
+
+        const nextStageRequirement = getStageRequirement(newStage);
+
+        const permitRow = await DatabaseManager.get(`
+            SELECT MAX(
+                CASE item_template_id
+                    WHEN 'Merchantpermit_1' THEN 1
+                    WHEN 'Merchantpermit_2' THEN 2
+                    WHEN 'Merchantpermit_3' THEN 3
+                    WHEN 'Merchantpermit_4' THEN 4
+                    ELSE 0
+                END
+            ) AS permitTier
+            FROM player_personal_items
+            WHERE player_id = ?
+              AND item_template_id IN (?, ?, ?, ?)
+        `, [playerId, ...MERCHANT_PERMIT_TEMPLATES]);
+
+        const permitTier = Number(permitRow?.permitTier ?? 0);
+
+        res.json({
+            success: true,
+            data: {
+                merchantId,
+                questId,
+                relationshipStage: newStage,
+                stageProgress: newProgress,
+                stageRequirement: nextStageRequirement,
+                permitTier,
+                canTrade: newStage > 0 && permitTier > 0
+            }
+        });
+    } catch (error) {
+        logger.error('관계도 진행 업데이트 실패:', error);
+        res.status(500).json({
+            success: false,
+            error: '서버 오류가 발생했습니다'
+        });
+    }
+});
+
+/**
+ * 상인 허가증 업그레이드
+ * POST /api/merchants/:merchantId/permit/upgrade
+ */
+router.post('/:merchantId/permit/upgrade', async (req, res) => {
+    try {
+        const { merchantId } = req.params;
+        const playerId = req.user.playerId;
+
+        const permitRow = await DatabaseManager.get(`
+            SELECT MAX(
+                CASE item_template_id
+                    WHEN 'Merchantpermit_1' THEN 1
+                    WHEN 'Merchantpermit_2' THEN 2
+                    WHEN 'Merchantpermit_3' THEN 3
+                    WHEN 'Merchantpermit_4' THEN 4
+                    ELSE 0
+                END
+            ) AS permitTier
+            FROM player_personal_items
+            WHERE player_id = ?
+              AND item_template_id IN (?, ?, ?, ?)
+        `, [playerId, ...MERCHANT_PERMIT_TEMPLATES]);
+
+        const currentPermitTier = Number(permitRow?.permitTier ?? 0);
+        const targetTier = currentPermitTier + 1;
+
+        if (targetTier > MERCHANT_PERMIT_TEMPLATES.length) {
+            return res.status(400).json({
+                success: false,
+                error: '더 이상 업그레이드할 수 없습니다',
+                data: { permitTier: currentPermitTier }
+            });
+        }
+
+        const relationship = await DatabaseManager.get(`
+            SELECT trust_level, stage_progress
+            FROM merchant_relationships
+            WHERE player_id = ? AND merchant_id = ?
+        `, [playerId, merchantId]);
+
+        const relationshipStage = relationship ? clampStage(relationship.trust_level ?? 0) : 0;
+
+        if (relationshipStage < targetTier) {
+            return res.status(403).json({
+                success: false,
+                error: '관계도 단계가 부족합니다',
+                code: 'RELATIONSHIP_STAGE_REQUIRED',
+                data: {
+                    merchantId,
+                    requiredRelationshipStage: targetTier,
+                    relationshipStage,
+                    permitTier: currentPermitTier
+                }
+            });
+        }
+
+        const newPermitTemplate = `Merchantpermit_${targetTier}`;
+
+        await DatabaseManager.transaction([
+            {
+                sql: `DELETE FROM player_personal_items
+                      WHERE player_id = ?
+                        AND item_template_id IN (?, ?, ?, ?)`,
+                params: [playerId, ...MERCHANT_PERMIT_TEMPLATES]
+            },
+            {
+                sql: `INSERT INTO player_personal_items (id, player_id, item_template_id, quantity)
+                      VALUES (?, ?, ?, 1)`,
+                params: [randomUUID(), playerId, newPermitTemplate]
+            }
+        ]);
+
+        res.json({
+            success: true,
+            message: `상인 허가증이 Lv.${targetTier}로 업그레이드되었습니다.`,
+            data: {
+                merchantId,
+                permitTier: targetTier,
+                relationshipStage,
+                stageRequirement: getStageRequirement(relationshipStage),
+                stageProgress: relationship?.stage_progress ?? 0
+            }
+        });
+    } catch (error) {
+        logger.error('상인 허가증 업그레이드 실패:', error);
         res.status(500).json({
             success: false,
             error: '서버 오류가 발생했습니다'

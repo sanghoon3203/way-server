@@ -83,6 +83,10 @@ CREATE INDEX IF NOT EXISTS idx_item_effects_template_id ON item_effects(item_tem
 
 -- 기본 개인 아이템 템플릿 데이터 삽입
 INSERT OR REPLACE INTO personal_item_templates (id, name, type, grade, max_stack, cooldown, description) VALUES
+('Merchantpermit_1', '임시 상인 허가증', 'artifact', 0, 1, 0, '일반 등급 아이템만 거래할 수 있는 임시 허가증'),
+('Merchantpermit_2', '초급 상인 허가증', 'artifact', 1, 1, 0, '중급 등급까지 거래할 수 있는 초급 상인 허가증'),
+('Merchantpermit_3', '중급 상인 허가증', 'artifact', 2, 1, 0, '고급 등급까지 거래할 수 있는 중급 상인 허가증'),
+('Merchantpermit_4', '상급 상인 허가증', 'artifact', 4, 1, 0, '희귀 및 전설 등급까지 거래할 수 있는 상급 상인 허가증'),
 -- 소비 아이템들
 ('health_potion_basic', '체력 물약', 'consumable', 1, 10, 300, '체력을 50 회복시켜주는 기본 물약'),
 ('health_potion_advanced', '고급 체력 물약', 'consumable', 2, 5, 180, '체력을 100 회복시켜주는 고급 물약'),

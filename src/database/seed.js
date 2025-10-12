@@ -286,6 +286,7 @@ async function clearSeedTables() {
         'merchant_dialogues',
         'merchant_inventory',
         'merchant_preferences',
+        'merchant_relationship_quest_log',
         'merchant_relationships',
         'trade_records',
         'player_items',
