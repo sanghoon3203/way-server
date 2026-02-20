@@ -203,12 +203,6 @@ class RateLimitError extends BaseError {
 /**
  * 특정 게임 기능 에러들
  */
-class AuctionError extends GameplayError {
-    constructor(message, reason, auctionId = null) {
-        super(message, 'AUCTION_ERROR', { reason, auctionId });
-    }
-}
-
 class GuildError extends GameplayError {
     constructor(message, reason, guildId = null) {
         super(message, 'GUILD_ERROR', { reason, guildId });
@@ -218,12 +212,6 @@ class GuildError extends GameplayError {
 class QuestError extends GameplayError {
     constructor(message, reason, questId = null) {
         super(message, 'QUEST_ERROR', { reason, questId });
-    }
-}
-
-class SkillError extends GameplayError {
-    constructor(message, skillId, reason) {
-        super(message, 'SKILL_ERROR', { skillId, reason });
     }
 }
 
@@ -325,10 +313,8 @@ module.exports = {
     DatabaseError,
     ExternalServiceError,
     RateLimitError,
-    AuctionError,
     GuildError,
     QuestError,
-    SkillError,
     LocationError,
     OutOfRangeError,
     ErrorFactory

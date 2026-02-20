@@ -126,9 +126,9 @@ app.use('/api/merchants', require('./routes/api/merchants'));
 app.use('/api/trade', require('./routes/api/trade'));
 app.use('/api/quests', require('./routes/api/quests'));
 app.use('/api/achievements', require('./routes/api/achievements'));
-app.use('/api/skills', require('./routes/api/skills'));
 app.use('/api/personal-items', require('./routes/api/personal-items'));
 app.use('/api/story', require('./routes/api/story'));
+app.use('/api/merchant-chat', require('./routes/api/merchant-chat'));
 
 // 게임 클라이언트 라우트 (iOS/Android)
 app.use('/game/quests', require('./routes/game/quests'));

@@ -25,10 +25,6 @@ router.use('/crud', crudRouter);
 const questsRouter = require('./quests');
 router.use('/quests', questsRouter);
 
-// 스킬 관리 라우트
-const skillsRouter = require('./skills');
-router.use('/skills', skillsRouter);
-
 // 📌 미디어 관리 라우트 (새로 추가)
 const mediaRouter = require('./media');
 router.use('/media', mediaRouter);

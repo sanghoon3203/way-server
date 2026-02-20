@@ -76,58 +76,6 @@ class AdminExtensions {
         }
     }
 
-    // 확장된 스킬 시스템 테이블들
-    static getSkillTables() {
-        return [
-            // 스킬 트리 템플릿
-            `CREATE TABLE IF NOT EXISTS skill_templates (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                category TEXT NOT NULL, -- trading, social, exploration, combat, crafting
-                tier INTEGER NOT NULL, -- 1-5 (기초부터 전문가까지)
-                max_level INTEGER DEFAULT 10,
-                prerequisites TEXT, -- JSON array of prerequisite skill IDs
-                unlock_requirements TEXT, -- JSON object with unlock conditions
-                effects TEXT, -- JSON object with skill effects per level
-                cost_per_level TEXT, -- JSON array of costs (skill points, items, etc)
-                icon_id INTEGER DEFAULT 1,
-                is_active BOOLEAN DEFAULT TRUE,
-                sort_order INTEGER DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-
-            // 플레이어별 스킬 레벨
-            `CREATE TABLE IF NOT EXISTS player_skills (
-                id TEXT PRIMARY KEY,
-                player_id TEXT NOT NULL,
-                skill_template_id TEXT NOT NULL,
-                current_level INTEGER DEFAULT 0,
-                current_exp INTEGER DEFAULT 0,
-                unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_used_at DATETIME,
-                usage_count INTEGER DEFAULT 0,
-                FOREIGN KEY (player_id) REFERENCES players(id),
-                FOREIGN KEY (skill_template_id) REFERENCES skill_templates(id),
-                UNIQUE(player_id, skill_template_id)
-            )`,
-
-            // 스킬 사용 기록
-            `CREATE TABLE IF NOT EXISTS skill_usage_logs (
-                id TEXT PRIMARY KEY,
-                player_id TEXT NOT NULL,
-                skill_template_id TEXT NOT NULL,
-                usage_context TEXT, -- trade, negotiation, exploration, etc
-                effectiveness REAL, -- 0.0 - 1.0
-                exp_gained INTEGER DEFAULT 0,
-                used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                additional_data TEXT, -- JSON with context-specific data
-                FOREIGN KEY (player_id) REFERENCES players(id),
-                FOREIGN KEY (skill_template_id) REFERENCES skill_templates(id)
-            )`
-        ];
-    }
-
     // 성취 시스템 테이블들
     static getAchievementTables() {
         return [
@@ -295,7 +243,6 @@ class AdminExtensions {
     static async createAllExtendedTables(db) {
         const allTables = [
             ...this.getQuestTables(),
-            ...this.getSkillTables(),
             ...this.getAchievementTables(),
             ...this.getAdminTables(),
             ...this.getAnalyticsTables()
@@ -333,7 +280,6 @@ class AdminExtensions {
         // 인덱스 생성
         const indexes = [
             'CREATE INDEX IF NOT EXISTS idx_player_quests_status ON player_quests(player_id, status)',
-            'CREATE INDEX IF NOT EXISTS idx_player_skills_level ON player_skills(player_id, current_level)',
             'CREATE INDEX IF NOT EXISTS idx_player_achievements_status ON player_achievements(player_id, status)',
             'CREATE INDEX IF NOT EXISTS idx_achievements_category ON achievement_templates(category, rarity)',
             'CREATE INDEX IF NOT EXISTS idx_admin_logs_action ON admin_action_logs(admin_user_id, action_type, performed_at)',
