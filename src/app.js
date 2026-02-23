@@ -72,10 +72,6 @@ app.use(session({
     }
 }));
 
-// EJS 템플릿 엔진 설정
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-
 // JSON 파싱 설정
 app.use(express.json({ 
     limit: '10mb',
@@ -88,12 +84,9 @@ app.use(express.urlencoded({
 }));
 
 // 정적 파일 서빙
-app.use('/public', express.static(path.join(__dirname, '../public')));
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// 어드민 정적 파일 서빙
-app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
-
-// 📌 상인 미디어 파일 서빙 (로컬 업로드된 이미지/GIF)
+// 📌 상인 미디어 파일 서빙
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // 데이터베이스 연결을 요청 객체에 추가
@@ -130,11 +123,8 @@ app.use('/api/personal-items', require('./routes/api/personal-items'));
 app.use('/api/story', require('./routes/api/story'));
 app.use('/api/merchant-chat', require('./routes/api/merchant-chat'));
 
-// 게임 클라이언트 라우트 (iOS/Android)
-app.use('/game/quests', require('./routes/game/quests'));
-
 // 어드민 라우트
-app.use('/admin', require('./routes/admin'));
+app.use('/admin', require('./routes/admin/index'));
 
 // 루트 경로
 app.get('/', (req, res) => {

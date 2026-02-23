@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ko" x-data="app()" x-init="init()">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>connect:seoul — 어드민</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+  :root { --neon: #00E5CC; --red: #FF2D55; --gold: #FFB800; }
+  body { background: #0A0A0F; color: #E8E0D5; font-family: 'Pretendard', system-ui, sans-serif; }
+  .neon { color: var(--neon); }
+  .neon-border { border-color: var(--neon); }
+  .neon-bg { background: rgba(0,229,204,0.08); }
+  .card { background: #16161F; border: 1px solid #2a2a3a; border-radius: 6px; }
+  .sidebar-item { transition: all .15s; }
+  .sidebar-item:hover, .sidebar-item.active { background: rgba(0,229,204,0.1); border-left: 3px solid var(--neon); }
+  .sidebar-item { border-left: 3px solid transparent; }
+  .btn-neon { background: var(--neon); color: #0A0A0F; font-weight: 700; padding: 6px 16px; border-radius: 4px; transition: opacity .15s; }
+  .btn-neon:hover { opacity: .85; }
+  .btn-ghost { border: 1px solid #2a2a3a; padding: 6px 14px; border-radius: 4px; transition: all .15s; }
+  .btn-ghost:hover { border-color: var(--neon); color: var(--neon); }
+  .btn-danger { border: 1px solid var(--red); color: var(--red); padding: 5px 12px; border-radius: 4px; }
+  .btn-danger:hover { background: rgba(255,45,85,.1); }
+  input, select, textarea { background: #111118; border: 1px solid #2a2a3a; border-radius: 4px; padding: 6px 10px; color: #E8E0D5; width: 100%; outline: none; }
+  input:focus, select:focus { border-color: var(--neon); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #888; border-bottom: 1px solid #1e1e2e; }
+  td { padding: 10px 12px; border-bottom: 1px solid #1a1a28; font-size: 13px; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+  .badge-green { background: rgba(0,229,204,.15); color: var(--neon); }
+  .badge-red { background: rgba(255,45,85,.15); color: var(--red); }
+  .badge-gold { background: rgba(255,184,0,.15); color: var(--gold); }
+  .badge-gray { background: rgba(255,255,255,.08); color: #888; }
+  .stat-card { background: #16161F; border: 1px solid #2a2a3a; border-radius: 6px; padding: 20px 24px; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 50; display: flex; align-items: center; justify-content: center; }
+  .modal { background: #16161F; border: 1px solid #2a2a3a; border-radius: 8px; padding: 28px; width: 480px; max-height: 80vh; overflow-y: auto; }
+  .log-entry { font-family: monospace; font-size: 12px; padding: 6px 0; border-bottom: 1px solid #1a1a28; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #111; } ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
+  [x-cloak] { display: none !important; }
+</style>
+</head>
+<body x-cloak>
+
+<!-- ─── 로그인 ─── -->
+<div x-show="!token" class="min-h-screen flex items-center justify-center">
+  <div class="card p-10 w-80 text-center">
+    <div class="text-xs tracking-widest mb-1 text-gray-500">CONNECT:SEOUL</div>
+    <div class="text-2xl font-bold neon mb-6">어드민 패널</div>
+    <form @submit.prevent="login()">
+      <input type="password" x-model="loginPw" placeholder="관리자 비밀번호" class="mb-3" autofocus>
+      <div x-show="loginError" class="text-red-400 text-xs mb-3" x-text="loginError"></div>
+      <button type="submit" class="btn-neon w-full">로그인</button>
+    </form>
+  </div>
+</div>
+
+<!-- ─── 메인 레이아웃 ─── -->
+<div x-show="token" class="flex min-h-screen">
+
+  <!-- 사이드바 -->
+  <aside class="w-56 flex-shrink-0 border-r border-gray-800 flex flex-col" style="background:#111118">
+    <div class="p-5 border-b border-gray-800">
+      <div class="text-xs text-gray-500 tracking-widest">CONNECT:SEOUL</div>
+      <div class="font-bold neon text-sm mt-1">어드민 패널</div>
+    </div>
+    <nav class="flex-1 p-3 space-y-1">
+      <template x-for="item in navItems" :key="item.id">
+        <button @click="page = item.id; loadPage()"
+          :class="['sidebar-item flex items-center gap-3 w-full text-left px-3 py-2.5 rounded text-sm', page === item.id ? 'active neon' : 'text-gray-400']">
+          <span x-text="item.icon" class="text-base"></span>
+          <span x-text="item.label"></span>
+        </button>
+      </template>
+    </nav>
+    <div class="p-4 border-t border-gray-800">
+      <button @click="logout()" class="btn-ghost w-full text-sm text-gray-400">로그아웃</button>
+    </div>
+  </aside>
+
+  <!-- 콘텐츠 -->
+  <main class="flex-1 overflow-auto">
+
+    <!-- 상단 바 -->
+    <header class="border-b border-gray-800 px-6 py-4 flex items-center justify-between" style="background:#111118">
+      <h1 class="font-bold text-base" x-text="navItems.find(n=>n.id===page)?.label || ''"></h1>
+      <div class="flex items-center gap-3 text-xs text-gray-500">
+        <span>서버: <span class="neon" x-text="health.status || '—'"></span></span>
+        <span>업타임: <span class="text-gray-300" x-text="uptimeStr"></span></span>
+        <button @click="loadPage()" class="btn-ghost text-xs px-3 py-1.5">↻ 새로고침</button>
+      </div>
+    </header>
+
+    <div class="p-6">
+
+      <!-- 로딩 -->
+      <div x-show="loading" class="text-center py-20 text-gray-500">불러오는 중...</div>
+
+      <!-- ─── 대시보드 ─── -->
+      <div x-show="!loading && page === 'dashboard'">
+        <div class="grid grid-cols-4 gap-4 mb-6">
+          <div class="stat-card"><div class="text-xs text-gray-500 mb-1">플레이어</div><div class="text-3xl font-bold neon" x-text="stats.playerCount ?? '—'"></div></div>
+          <div class="stat-card"><div class="text-xs text-gray-500 mb-1">거래 건수</div><div class="text-3xl font-bold" style="color:var(--gold)" x-text="stats.tradeCount ?? '—'"></div></div>
+          <div class="stat-card"><div class="text-xs text-gray-500 mb-1">상인</div><div class="text-3xl font-bold text-purple-400" x-text="stats.merchantCount ?? '—'"></div></div>
+          <div class="stat-card"><div class="text-xs text-gray-500 mb-1">퀘스트</div><div class="text-3xl font-bold text-blue-400" x-text="stats.questCount ?? '—'"></div></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="card p-4">
+            <div class="text-xs text-gray-500 mb-3 font-semibold tracking-wider">최근 가입 플레이어</div>
+            <table>
+              <thead><tr><th>이름</th><th>레벨</th><th>골드</th><th>가입일</th></tr></thead>
+              <tbody>
+                <template x-for="p in stats.recentPlayers || []" :key="p.name">
+                  <tr>
+                    <td x-text="p.name"></td>
+                    <td><span class="badge badge-green" x-text="'Lv.' + p.level"></span></td>
+                    <td x-text="(p.money||0).toLocaleString() + 'G'"></td>
+                    <td class="text-gray-500" x-text="fmtDate(p.created_at)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="card p-4">
+            <div class="text-xs text-gray-500 mb-3 font-semibold tracking-wider">최근 거래</div>
+            <table>
+              <thead><tr><th>플레이어</th><th>상인</th><th>금액</th><th>일시</th></tr></thead>
+              <tbody>
+                <template x-for="t in stats.recentTrades || []" :key="t.id">
+                  <tr>
+                    <td x-text="t.player_name || '—'"></td>
+                    <td x-text="t.merchant_name || '—'"></td>
+                    <td x-text="(t.total_price||0).toLocaleString() + 'G'"></td>
+                    <td class="text-gray-500" x-text="fmtDate(t.created_at)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── 플레이어 ─── -->
+      <div x-show="!loading && page === 'players'">
+        <div class="flex gap-3 mb-4">
+          <input x-model="playerSearch" @input.debounce.400ms="loadPlayers()" placeholder="이름 또는 이메일 검색..." class="max-w-xs">
+          <button @click="loadPlayers()" class="btn-ghost">검색</button>
+        </div>
+        <div class="card overflow-hidden mb-4">
+          <table>
+            <thead><tr><th>이름</th><th>이메일</th><th>레벨</th><th>골드</th><th>라이센스</th><th>상태</th><th>가입일</th><th></th></tr></thead>
+            <tbody>
+              <template x-for="p in players" :key="p.id">
+                <tr>
+                  <td class="font-medium" x-text="p.name"></td>
+                  <td class="text-gray-400 text-xs" x-text="p.email"></td>
+                  <td><span class="badge badge-green" x-text="'Lv.' + p.level"></span></td>
+                  <td x-text="(p.money||0).toLocaleString() + 'G'"></td>
+                  <td x-text="p.current_license"></td>
+                  <td><span :class="p.is_active ? 'badge badge-green' : 'badge badge-red'" x-text="p.is_active ? '활성' : '정지'"></span></td>
+                  <td class="text-gray-500 text-xs" x-text="fmtDate(p.created_at)"></td>
+                  <td class="text-right"><button @click="openPlayer(p)" class="btn-ghost text-xs">수정</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center gap-4 text-sm text-gray-400">
+          <span>총 <strong x-text="playerTotal"></strong>명</span>
+          <button @click="playerPage--; loadPlayers()" :disabled="playerPage<=1" class="btn-ghost text-xs disabled:opacity-30">← 이전</button>
+          <span x-text="playerPage + ' / ' + Math.ceil(playerTotal/20)"></span>
+          <button @click="playerPage++; loadPlayers()" :disabled="playerPage >= Math.ceil(playerTotal/20)" class="btn-ghost text-xs disabled:opacity-30">다음 →</button>
+        </div>
+      </div>
+
+      <!-- ─── 상인 ─── -->
+      <div x-show="!loading && page === 'merchants'">
+        <div class="grid grid-cols-3 gap-4">
+          <template x-for="m in merchants" :key="m.id">
+            <div class="card p-4">
+              <div class="flex items-start justify-between mb-2">
+                <div>
+                  <div class="font-bold" x-text="m.name"></div>
+                  <div class="text-xs text-gray-500" x-text="m.title"></div>
+                </div>
+                <span :class="m.is_active ? 'badge badge-green' : 'badge badge-red'" x-text="m.is_active ? '활성' : '비활성'"></span>
+              </div>
+              <div class="text-xs text-gray-500 mb-2" x-text="'구역: ' + (m.district || m.id)"></div>
+              <div class="text-xs text-gray-500 mb-3" x-text="'인벤토리: ' + (m.inventory?.length || 0) + '종'"></div>
+              <button @click="openMerchant(m)" class="btn-ghost text-xs w-full">수정</button>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ─── 퀘스트 ─── -->
+      <div x-show="!loading && page === 'quests'">
+        <div class="card overflow-hidden mb-4">
+          <table>
+            <thead><tr><th>플레이어</th><th>퀘스트 ID</th><th>상태</th><th>업데이트</th></tr></thead>
+            <tbody>
+              <template x-for="q in quests" :key="q.id">
+                <tr>
+                  <td class="font-medium" x-text="q.player_name || '—'"></td>
+                  <td class="text-xs text-gray-400" x-text="q.quest_id"></td>
+                  <td><span :class="q.status === 'completed' ? 'badge badge-green' : q.status === 'active' ? 'badge badge-gold' : 'badge badge-gray'" x-text="q.status"></span></td>
+                  <td class="text-gray-500 text-xs" x-text="fmtDate(q.updated_at)"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center gap-4 text-sm text-gray-400">
+          <span>총 <strong x-text="questTotal"></strong>건</span>
+          <button @click="questPage--; loadQuests()" :disabled="questPage<=1" class="btn-ghost text-xs disabled:opacity-30">← 이전</button>
+          <span x-text="questPage"></span>
+          <button @click="questPage++; loadQuests()" :disabled="quests.length < 30" class="btn-ghost text-xs disabled:opacity-30">다음 →</button>
+        </div>
+      </div>
+
+      <!-- ─── 거래 내역 ─── -->
+      <div x-show="!loading && page === 'trades'">
+        <div class="card overflow-hidden mb-4">
+          <table>
+            <thead><tr><th>플레이어</th><th>상인</th><th>타입</th><th>아이템</th><th>수량</th><th>금액</th><th>일시</th></tr></thead>
+            <tbody>
+              <template x-for="t in trades" :key="t.id">
+                <tr>
+                  <td class="font-medium" x-text="t.player_name || '—'"></td>
+                  <td x-text="t.merchant_name || '—'"></td>
+                  <td><span :class="t.trade_type==='buy' ? 'badge badge-green' : 'badge badge-red'" x-text="t.trade_type==='buy' ? '구매' : '판매'"></span></td>
+                  <td class="text-gray-400 text-xs" x-text="t.item_id || '—'"></td>
+                  <td x-text="t.quantity || 1"></td>
+                  <td class="font-medium" style="color:var(--gold)" x-text="(t.total_price||0).toLocaleString() + 'G'"></td>
+                  <td class="text-gray-500 text-xs" x-text="fmtDate(t.created_at)"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center gap-4 text-sm text-gray-400">
+          <span>총 <strong x-text="tradeTotal"></strong>건</span>
+          <button @click="tradePage--; loadTrades()" :disabled="tradePage<=1" class="btn-ghost text-xs disabled:opacity-30">← 이전</button>
+          <span x-text="tradePage"></span>
+          <button @click="tradePage++; loadTrades()" :disabled="trades.length < 30" class="btn-ghost text-xs disabled:opacity-30">다음 →</button>
+        </div>
+      </div>
+
+      <!-- ─── 로그 ─── -->
+      <div x-show="!loading && page === 'logs'">
+        <div class="card p-4 mb-4">
+          <template x-for="l in logs" :key="l.id">
+            <div class="log-entry">
+              <span class="text-gray-600" x-text="fmtDate(l.created_at) + ' '"></span>
+              <span class="neon" x-text="'[' + (l.action || l.activity_type || 'event') + '] '"></span>
+              <span class="text-gray-300" x-text="l.player_name ? '[' + l.player_name + '] ' : ''"></span>
+              <span class="text-gray-400" x-text="l.details || l.description || ''"></span>
+            </div>
+          </template>
+          <div x-show="!logs.length" class="text-gray-500 text-sm py-4 text-center">로그 없음</div>
+        </div>
+        <div class="flex items-center gap-4 text-sm text-gray-400">
+          <span>총 <strong x-text="logTotal"></strong>건</span>
+          <button @click="logPage--; loadLogs()" :disabled="logPage<=1" class="btn-ghost text-xs disabled:opacity-30">← 이전</button>
+          <span x-text="logPage"></span>
+          <button @click="logPage++; loadLogs()" :disabled="logs.length < 50" class="btn-ghost text-xs disabled:opacity-30">다음 →</button>
+        </div>
+      </div>
+
+      <!-- ─── 서버 상태 ─── -->
+      <div x-show="!loading && page === 'server'">
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div class="stat-card">
+            <div class="text-xs text-gray-500 mb-3 tracking-wider font-semibold">서버 상태</div>
+            <div class="space-y-3 text-sm">
+              <div class="flex justify-between"><span class="text-gray-500">상태</span><span class="badge badge-green" x-text="health.status || '—'"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">업타임</span><span class="neon" x-text="uptimeStr"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Node.js</span><span x-text="health.nodeVersion || '—'"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">확인 시각</span><span class="text-gray-400" x-text="fmtDate(health.timestamp)"></span></div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="text-xs text-gray-500 mb-3 tracking-wider font-semibold">메모리 사용량</div>
+            <div class="space-y-3 text-sm" x-show="health.memory">
+              <div class="flex justify-between"><span class="text-gray-500">RSS</span><span x-text="fmtMem(health.memory?.rss)"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Heap 사용</span><span class="neon" x-text="fmtMem(health.memory?.heapUsed)"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">Heap 전체</span><span x-text="fmtMem(health.memory?.heapTotal)"></span></div>
+              <div class="flex justify-between"><span class="text-gray-500">External</span><span x-text="fmtMem(health.memory?.external)"></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card p-4">
+          <div class="text-xs text-gray-500 mb-3 tracking-wider font-semibold">API 엔드포인트</div>
+          <div class="grid grid-cols-3 gap-2 text-xs">
+            <template x-for="ep in endpoints" :key="ep">
+              <div class="bg-gray-900 rounded px-3 py-2 font-mono text-gray-400" x-text="ep"></div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ─── 플레이어 수정 모달 ─── -->
+<div x-show="playerModal" class="modal-overlay" @click.self="playerModal = false">
+  <div class="modal" @click.stop>
+    <div class="font-bold text-lg mb-4" x-text="'플레이어 수정: ' + (editPlayer.name || '')"></div>
+    <div class="space-y-3 mb-5">
+      <div><label class="text-xs text-gray-500 mb-1 block">레벨</label><input type="number" x-model.number="editPlayer.level"></div>
+      <div><label class="text-xs text-gray-500 mb-1 block">골드</label><input type="number" x-model.number="editPlayer.money"></div>
+      <div><label class="text-xs text-gray-500 mb-1 block">라이센스</label><input type="number" x-model.number="editPlayer.current_license"></div>
+      <div class="flex items-center gap-3">
+        <input type="checkbox" x-model="editPlayer.is_active" class="w-4 h-4">
+        <label class="text-sm">계정 활성화</label>
+      </div>
+    </div>
+    <div class="flex justify-between">
+      <button @click="deletePlayer()" class="btn-danger text-sm">삭제</button>
+      <div class="flex gap-2">
+        <button @click="playerModal = false" class="btn-ghost text-sm">취소</button>
+        <button @click="savePlayer()" class="btn-neon text-sm">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 상인 수정 모달 ─── -->
+<div x-show="merchantModal" class="modal-overlay" @click.self="merchantModal = false">
+  <div class="modal" @click.stop>
+    <div class="font-bold text-lg mb-4" x-text="'상인 수정: ' + (editMerchant.name || '')"></div>
+    <div class="space-y-3 mb-5">
+      <div><label class="text-xs text-gray-500 mb-1 block">이름</label><input type="text" x-model="editMerchant.name"></div>
+      <div><label class="text-xs text-gray-500 mb-1 block">직함</label><input type="text" x-model="editMerchant.title"></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="text-xs text-gray-500 mb-1 block">위도</label><input type="number" step="0.0001" x-model.number="editMerchant.latitude"></div>
+        <div><label class="text-xs text-gray-500 mb-1 block">경도</label><input type="number" step="0.0001" x-model.number="editMerchant.longitude"></div>
+      </div>
+      <div class="flex items-center gap-3">
+        <input type="checkbox" x-model="editMerchant.is_active" class="w-4 h-4">
+        <label class="text-sm">상인 활성화</label>
+      </div>
+    </div>
+    <div class="text-xs text-gray-500 mb-3" x-show="editMerchant.inventory?.length">
+      인벤토리: <span x-text="editMerchant.inventory?.length"></span>개 아이템
+    </div>
+    <div class="flex justify-end gap-2">
+      <button @click="merchantModal = false" class="btn-ghost text-sm">취소</button>
+      <button @click="saveMerchant()" class="btn-neon text-sm">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── 알림 토스트 ─── -->
+<div x-show="toast.show" x-transition class="fixed bottom-6 right-6 px-4 py-3 rounded shadow-xl text-sm font-medium z-50"
+  :class="toast.ok ? 'bg-emerald-900 border border-emerald-500 text-emerald-200' : 'bg-red-900 border border-red-500 text-red-200'"
+  x-text="toast.msg"></div>
+
+<script>
+function app() {
+  return {
+    token: localStorage.getItem('admin_token') || '',
+    loginPw: '', loginError: '',
+    page: 'dashboard', loading: false,
+
+    navItems: [
+      { id: 'dashboard', label: '대시보드', icon: '⊞' },
+      { id: 'players',   label: '플레이어 관리', icon: '👤' },
+      { id: 'merchants', label: '상인 관리', icon: '🏮' },
+      { id: 'quests',    label: '퀘스트', icon: '📜' },
+      { id: 'trades',    label: '거래 내역', icon: '💱' },
+      { id: 'logs',      label: '활동 로그', icon: '📋' },
+      { id: 'server',    label: '서버 상태', icon: '🖥' },
+    ],
+
+    endpoints: [
+      'GET /api/auth', 'POST /api/auth/login', 'GET /api/player/profile',
+      'PUT /api/player/location', 'GET /api/merchants', 'POST /api/trade/buy',
+      'POST /api/trade/sell', 'GET /api/quests', 'POST /api/merchant-chat',
+      'POST /api/story/chapter/reward',
+    ],
+
+    stats: {}, health: {}, players: [], playerTotal: 0, playerPage: 1, playerSearch: '',
+    merchants: [], quests: [], questTotal: 0, questPage: 1,
+    trades: [], tradeTotal: 0, tradePage: 1, logs: [], logTotal: 0, logPage: 1,
+    playerModal: false, editPlayer: {}, merchantModal: false, editMerchant: {},
+    toast: { show: false, msg: '', ok: true },
+
+    get uptimeStr() {
+      const s = Math.floor(this.health.uptime || 0);
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+      return `${h}h ${m}m ${sec}s`;
+    },
+
+    async init() {
+      if (this.token) { await this.loadPage(); await this.loadHealth(); }
+      setInterval(() => this.loadHealth(), 30000);
+    },
+
+    async login() {
+      this.loginError = '';
+      const r = await fetch('/admin/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: this.loginPw }) });
+      if (r.ok) {
+        const d = await r.json();
+        this.token = d.token;
+        localStorage.setItem('admin_token', this.token);
+        await this.loadPage(); await this.loadHealth();
+      } else {
+        this.loginError = '비밀번호가 틀렸습니다';
+      }
+    },
+
+    logout() { this.token = ''; localStorage.removeItem('admin_token'); },
+
+    headers() { return { Authorization: `Bearer ${this.token}` }; },
+
+    async api(url) {
+      const r = await fetch(url, { headers: this.headers() });
+      if (r.status === 401) { this.logout(); return null; }
+      return r.json();
+    },
+
+    async apiFetch(url, method, body) {
+      const r = await fetch(url, { method, headers: { ...this.headers(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      return r.json();
+    },
+
+    async loadPage() {
+      this.loading = true;
+      try {
+        if (this.page === 'dashboard') await this.loadStats();
+        else if (this.page === 'players') await this.loadPlayers();
+        else if (this.page === 'merchants') await this.loadMerchants();
+        else if (this.page === 'quests') await this.loadQuests();
+        else if (this.page === 'trades') await this.loadTrades();
+        else if (this.page === 'logs') await this.loadLogs();
+        else if (this.page === 'server') await this.loadHealth();
+      } finally { this.loading = false; }
+    },
+
+    async loadStats() { const d = await this.api('/admin/api/stats'); if (d) this.stats = d; },
+    async loadHealth() { const d = await this.api('/admin/api/health'); if (d) this.health = d; },
+    async loadPlayers() {
+      const d = await this.api(`/admin/api/players?search=${encodeURIComponent(this.playerSearch)}&page=${this.playerPage}`);
+      if (d) { this.players = d.players; this.playerTotal = d.total; }
+    },
+    async loadMerchants() { const d = await this.api('/admin/api/merchants'); if (d) this.merchants = d.merchants; },
+    async loadQuests() { const d = await this.api(`/admin/api/quests?page=${this.questPage}`); if (d) { this.quests = d.quests; this.questTotal = d.total; } },
+    async loadTrades() { const d = await this.api(`/admin/api/trades?page=${this.tradePage}`); if (d) { this.trades = d.trades; this.tradeTotal = d.total; } },
+    async loadLogs() { const d = await this.api(`/admin/api/logs?page=${this.logPage}`); if (d) { this.logs = d.logs; this.logTotal = d.total; } },
+
+    openPlayer(p) { this.editPlayer = { ...p }; this.playerModal = true; },
+    async savePlayer() {
+      const r = await this.apiFetch(`/admin/api/players/${this.editPlayer.id}`, 'PUT', this.editPlayer);
+      if (r.ok) { this.showToast('저장 완료', true); this.playerModal = false; await this.loadPlayers(); }
+      else this.showToast(r.error || '저장 실패', false);
+    },
+    async deletePlayer() {
+      if (!confirm(`"${this.editPlayer.name}" 플레이어를 삭제하시겠습니까?`)) return;
+      const r = await this.apiFetch(`/admin/api/players/${this.editPlayer.id}`, 'DELETE');
+      if (r.ok) { this.showToast('삭제 완료', true); this.playerModal = false; await this.loadPlayers(); }
+      else this.showToast(r.error || '삭제 실패', false);
+    },
+
+    openMerchant(m) { this.editMerchant = { ...m }; this.merchantModal = true; },
+    async saveMerchant() {
+      const r = await this.apiFetch(`/admin/api/merchants/${this.editMerchant.id}`, 'PUT', this.editMerchant);
+      if (r.ok) { this.showToast('저장 완료', true); this.merchantModal = false; await this.loadMerchants(); }
+      else this.showToast(r.error || '저장 실패', false);
+    },
+
+    showToast(msg, ok) {
+      this.toast = { show: true, msg, ok };
+      setTimeout(() => this.toast.show = false, 3000);
+    },
+
+    fmtDate(dt) {
+      if (!dt) return '—';
+      const d = new Date(dt);
+      return d.toLocaleDateString('ko-KR') + ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    },
+    fmtMem(b) { if (!b) return '—'; return (b / 1024 / 1024).toFixed(1) + ' MB'; },
+  };
+}
+</script>
+</body>
+</html>

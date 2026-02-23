@@ -1,7 +1,7 @@
 {
   "name": "theway_server",
   "version": "1.0.0",
-  "description": "Way Trading Game Server - Node.js backend with Socket.IO and SQLite",
+  "description": "connect:seoul Game Server - Node.js backend with SQLite",
   "main": "src/server.js",
   "scripts": {
     "start": "node ./src/server.js",
@@ -15,7 +15,6 @@
     "trading",
     "game",
     "nodejs",
-    "socketio",
     "sqlite"
   ],
   "author": "Way Game Team",
@@ -25,7 +24,6 @@
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "ejs": "^3.1.10",
     "express": "^4.18.2",
     "express-rate-limit": "^6.10.0",
     "express-session": "^1.18.2",
@@ -35,7 +33,6 @@
     "moment": "^2.30.1",
     "multer": "^2.0.2",
     "sharp": "^0.34.3",
-    "socket.io": "^4.7.2",
     "sqlite3": "^5.1.6",
     "uuid": "^13.0.0",
     "winston": "^3.10.0"
