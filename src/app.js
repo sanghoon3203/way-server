@@ -4,7 +4,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const session = require('express-session');
 const logger = require('./config/logger');
 
 const app = express();
@@ -60,17 +59,6 @@ const limiter = rateLimit({
 });
 
 app.use('/api/', limiter);
-
-// 세션 설정 (어드민 인증용)
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'way3-admin-secret-key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000 // 24시간
-    }
-}));
 
 // JSON 파싱 설정
 app.use(express.json({ 
