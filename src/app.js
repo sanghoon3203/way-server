@@ -117,8 +117,6 @@ app.use('/api/auth', require('./routes/api/auth'));
 app.use('/api/player', require('./routes/api/player'));
 app.use('/api/merchants', require('./routes/api/merchants'));
 app.use('/api/trade', require('./routes/api/trade'));
-app.use('/api/quests', require('./routes/api/quests'));
-app.use('/api/achievements', require('./routes/api/achievements'));
 app.use('/api/personal-items', require('./routes/api/personal-items'));
 app.use('/api/story', require('./routes/api/story'));
 app.use('/api/merchant-chat', require('./routes/api/merchant-chat'));
