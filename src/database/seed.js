@@ -245,12 +245,7 @@ async function seedDatabase(options = {}) {
 
         await seedIfNeeded('item_templates', seedItemTemplates, '아이템 템플릿', { force, seededTables });
         await seedIfNeeded('merchants', seedMerchants, '상인', { force, seededTables });
-        await seedIfNeeded('merchant_dialogues', seedMerchantDialogues, '상인 대화', { force, seededTables });
         await seedIfNeeded('merchant_inventory', seedMerchantInventory, '상인 인벤토리', { force, seededTables });
-        await seedIfNeeded('story_nodes', seedStoryNodes, '스토리 노드', { force, seededTables });
-        await seedIfNeeded('quest_templates', seedQuestTemplates, '퀘스트 템플릿', { force, seededTables });
-        await seedIfNeeded('quest_templates', seedStoryQuests, '스토리 퀘스트', { force, seededTables });
-        await seedIfNeeded('achievement_templates', seedAchievements, '성취 템플릿', { force, seededTables });
         await seedIfNeeded('users', seedTestPlayers, '테스트 플레이어', { force, seededTables });
 
         if (seededTables.length > 0) {
@@ -287,21 +282,16 @@ async function isTableEmpty(tableName) {
 
 async function clearSeedTables() {
     const tablesInDeleteOrder = [
-        'merchant_dialogue_logs',
-        'merchant_dialogues',
         'merchant_inventory',
         'merchant_preferences',
         'merchant_relationship_quest_log',
         'merchant_relationships',
         'trade_records',
         'player_items',
-        'player_sessions',
         'players',
         'users',
         'merchants',
-        'item_templates',
-        'quest_templates',
-        'achievement_templates'
+        'item_templates'
     ];
 
     for (const table of tablesInDeleteOrder) {
