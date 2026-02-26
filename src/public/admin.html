@@ -3,136 +3,841 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>connect:seoul — 어드민</title>
+<title>connect:seoul — 관아 시스템</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  :root { --neon: #00E5CC; --red: #FF2D55; --gold: #FFB800; }
-  body { background: #0A0A0F; color: #E8E0D5; font-family: 'Pretendard', system-ui, sans-serif; }
-  .neon { color: var(--neon); }
-  .neon-border { border-color: var(--neon); }
-  .neon-bg { background: rgba(0,229,204,0.08); }
-  .card { background: #16161F; border: 1px solid #2a2a3a; border-radius: 6px; }
-  .sidebar-item { transition: all .15s; }
-  .sidebar-item:hover, .sidebar-item.active { background: rgba(0,229,204,0.1); border-left: 3px solid var(--neon); }
-  .sidebar-item { border-left: 3px solid transparent; }
-  .btn-neon { background: var(--neon); color: #0A0A0F; font-weight: 700; padding: 6px 16px; border-radius: 4px; transition: opacity .15s; }
-  .btn-neon:hover { opacity: .85; }
-  .btn-ghost { border: 1px solid #2a2a3a; padding: 6px 14px; border-radius: 4px; transition: all .15s; }
-  .btn-ghost:hover { border-color: var(--neon); color: var(--neon); }
-  .btn-danger { border: 1px solid var(--red); color: var(--red); padding: 5px 12px; border-radius: 4px; }
-  .btn-danger:hover { background: rgba(255,45,85,.1); }
-  input, select, textarea { background: #111118; border: 1px solid #2a2a3a; border-radius: 4px; padding: 6px 10px; color: #E8E0D5; width: 100%; outline: none; }
-  input:focus, select:focus { border-color: var(--neon); }
+  :root {
+    --cheong: #00E5CC;
+    --jeok: #FF2D55;
+    --hwang: #FFB800;
+    --baek: #E8E0D5;
+    --heuk: #070710;
+    --panel: #0D0D1A;
+    --card: #111124;
+    --border: rgba(0,229,204,0.15);
+    --border-dim: rgba(232,224,213,0.08);
+    --glow-cheong: 0 0 20px rgba(0,229,204,0.3);
+    --glow-hwang: 0 0 20px rgba(255,184,0,0.3);
+    --glow-jeok: 0 0 20px rgba(255,45,85,0.3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--heuk);
+    color: var(--baek);
+    font-family: 'IBM Plex Mono', 'Noto Serif KR', monospace;
+    margin: 0;
+    overflow-x: hidden;
+  }
+
+  /* ── 배경 노이즈 + 그리드 ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,229,204,0.03) 39px, rgba(0,229,204,0.03) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,229,204,0.03) 39px, rgba(0,229,204,0.03) 40px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── 단청 상단 바 ── */
+  .dancheong-bar {
+    height: 3px;
+    background: linear-gradient(90deg,
+      var(--jeok) 0%, var(--jeok) 12%,
+      var(--hwang) 12%, var(--hwang) 24%,
+      var(--cheong) 24%, var(--cheong) 36%,
+      var(--baek) 36%, var(--baek) 48%,
+      var(--heuk) 48%, var(--heuk) 52%,
+      var(--baek) 52%, var(--baek) 64%,
+      var(--cheong) 64%, var(--cheong) 76%,
+      var(--hwang) 76%, var(--hwang) 88%,
+      var(--jeok) 88%, var(--jeok) 100%
+    );
+    flex-shrink: 0;
+  }
+
+  .dancheong-bar-thin {
+    height: 2px;
+    background: linear-gradient(90deg,
+      var(--jeok) 0%, var(--jeok) 15%,
+      var(--hwang) 15%, var(--hwang) 30%,
+      var(--cheong) 30%, var(--cheong) 50%,
+      var(--hwang) 50%, var(--hwang) 70%,
+      var(--jeok) 70%, var(--jeok) 100%
+    );
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+
+  /* ── 사이드바 ── */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border-dim);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 1;
+  }
+
+  .sidebar-brand {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid var(--border-dim);
+    position: relative;
+  }
+
+  .sidebar-brand::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 20px;
+    right: 20px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cheong), transparent);
+    opacity: 0.4;
+  }
+
+  .brand-seal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1.5px solid var(--jeok);
+    border-radius: 4px;
+    color: var(--jeok);
+    font-size: 14px;
+    font-family: 'Noto Serif KR', serif;
+    font-weight: 900;
+    margin-bottom: 10px;
+    box-shadow: var(--glow-jeok);
+    transform: rotate(3deg);
+  }
+
+  .brand-title {
+    font-family: 'Noto Serif KR', serif;
+    font-weight: 900;
+    font-size: 13px;
+    color: var(--cheong);
+    letter-spacing: 0.1em;
+    text-shadow: var(--glow-cheong);
+  }
+
+  .brand-sub {
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    color: rgba(232,224,213,0.35);
+    margin-top: 2px;
+    text-transform: uppercase;
+  }
+
+  .nav-section {
+    flex: 1;
+    padding: 12px 10px;
+    overflow-y: auto;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    color: rgba(232,224,213,0.45);
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+    margin-bottom: 2px;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+  }
+
+  .nav-item:hover {
+    color: var(--baek);
+    background: rgba(0,229,204,0.05);
+    border-left-color: rgba(0,229,204,0.3);
+  }
+
+  .nav-item.active {
+    color: var(--cheong);
+    background: rgba(0,229,204,0.08);
+    border-left-color: var(--cheong);
+    text-shadow: var(--glow-cheong);
+  }
+
+  .nav-icon {
+    font-size: 13px;
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .sidebar-footer {
+    padding: 12px 10px;
+    border-top: 1px solid var(--border-dim);
+  }
+
+  /* ── 메인 ── */
+  .main-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+    min-height: 0;
+  }
+
+  .topbar {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border-dim);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .topbar-title {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--baek);
+    letter-spacing: 0.08em;
+  }
+
+  .topbar-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 11px;
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--cheong);
+    box-shadow: var(--glow-cheong);
+    margin-right: 5px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  /* ── 카드 ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border-dim);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cheong), transparent);
+    opacity: 0.2;
+  }
+
+  .card-header {
+    padding: 14px 20px 12px;
+    border-bottom: 1px solid var(--border-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(232,224,213,0.5);
+    font-weight: 600;
+  }
+
+  .card-accent {
+    width: 3px;
+    height: 14px;
+    border-radius: 2px;
+    background: var(--cheong);
+    box-shadow: var(--glow-cheong);
+    flex-shrink: 0;
+  }
+
+  /* ── 스탯 카드 ── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border-dim);
+    border-radius: 6px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .stat-card.s-cheong::after { background: var(--cheong); box-shadow: var(--glow-cheong); }
+  .stat-card.s-hwang::after  { background: var(--hwang);  box-shadow: var(--glow-hwang); }
+  .stat-card.s-jeok::after   { background: var(--jeok);   box-shadow: var(--glow-jeok); }
+  .stat-card.s-baek::after   { background: rgba(232,224,213,0.4); }
+
+  .stat-label {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(232,224,213,0.35);
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .stat-value.c-cheong { color: var(--cheong); text-shadow: var(--glow-cheong); }
+  .stat-value.c-hwang  { color: var(--hwang);  text-shadow: var(--glow-hwang); }
+  .stat-value.c-jeok   { color: var(--jeok);   text-shadow: var(--glow-jeok); }
+  .stat-value.c-baek   { color: var(--baek); }
+
+  /* ── 테이블 ── */
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #888; border-bottom: 1px solid #1e1e2e; }
-  td { padding: 10px 12px; border-bottom: 1px solid #1a1a28; font-size: 13px; }
-  tr:hover td { background: rgba(255,255,255,.02); }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
-  .badge-green { background: rgba(0,229,204,.15); color: var(--neon); }
-  .badge-red { background: rgba(255,45,85,.15); color: var(--red); }
-  .badge-gold { background: rgba(255,184,0,.15); color: var(--gold); }
-  .badge-gray { background: rgba(255,255,255,.08); color: #888; }
-  .stat-card { background: #16161F; border: 1px solid #2a2a3a; border-radius: 6px; padding: 20px 24px; }
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 50; display: flex; align-items: center; justify-content: center; }
-  .modal { background: #16161F; border: 1px solid #2a2a3a; border-radius: 8px; padding: 28px; width: 480px; max-height: 80vh; overflow-y: auto; }
-  .log-entry { font-family: monospace; font-size: 12px; padding: 6px 0; border-bottom: 1px solid #1a1a28; }
-  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #111; } ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
+
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(232,224,213,0.3);
+    border-bottom: 1px solid var(--border-dim);
+    font-weight: 600;
+  }
+
+  td {
+    padding: 11px 16px;
+    border-bottom: 1px solid rgba(232,224,213,0.04);
+    font-size: 12px;
+    color: rgba(232,224,213,0.8);
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(0,229,204,0.03); }
+
+  /* ── 배지 ── */
+  .badge {
+    display: inline-block;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    padding: 3px 9px;
+    border-radius: 2px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .badge-cheong { background: rgba(0,229,204,0.12); color: var(--cheong); border: 1px solid rgba(0,229,204,0.25); }
+  .badge-jeok   { background: rgba(255,45,85,0.12);  color: var(--jeok);   border: 1px solid rgba(255,45,85,0.25); }
+  .badge-hwang  { background: rgba(255,184,0,0.12);  color: var(--hwang);  border: 1px solid rgba(255,184,0,0.25); }
+  .badge-dim    { background: rgba(255,255,255,0.05); color: rgba(232,224,213,0.4); border: 1px solid rgba(255,255,255,0.08); }
+
+  /* ── 버튼 ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border-radius: 4px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    font-family: inherit;
+  }
+
+  .btn-primary {
+    background: var(--cheong);
+    color: var(--heuk);
+    border-color: var(--cheong);
+  }
+  .btn-primary:hover { box-shadow: var(--glow-cheong); filter: brightness(1.1); }
+
+  .btn-ghost {
+    background: transparent;
+    color: rgba(232,224,213,0.5);
+    border-color: var(--border-dim);
+  }
+  .btn-ghost:hover {
+    color: var(--cheong);
+    border-color: rgba(0,229,204,0.4);
+    background: rgba(0,229,204,0.05);
+  }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--jeok);
+    border-color: rgba(255,45,85,0.3);
+  }
+  .btn-danger:hover { background: rgba(255,45,85,0.08); }
+
+  .btn-sm { padding: 5px 11px; font-size: 10px; }
+
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── 인풋 ── */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  select, textarea {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--border-dim);
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: var(--baek);
+    width: 100%;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input[type="text"]:focus,
+  input[type="email"]:focus,
+  input[type="password"]:focus,
+  input[type="number"]:focus,
+  select:focus {
+    border-color: rgba(0,229,204,0.5);
+    box-shadow: 0 0 0 3px rgba(0,229,204,0.06);
+  }
+
+  input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--cheong);
+  }
+
+  /* ── 모달 ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(7,7,16,0.85);
+    backdrop-filter: blur(6px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+    width: 480px;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--jeok), var(--hwang), var(--cheong));
+    border-radius: 8px 8px 0 0;
+  }
+
+  .modal-title {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--baek);
+    margin-bottom: 20px;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(232,224,213,0.4);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+
+  /* ── 페이지네이션 ── */
+  .pagination {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    font-size: 11px;
+    color: rgba(232,224,213,0.4);
+  }
+
+  .pagination strong { color: var(--cheong); font-family: 'IBM Plex Mono', monospace; }
+
+  /* ── 로그 엔트리 ── */
+  .log-entry {
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(232,224,213,0.04);
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: rgba(232,224,213,0.25); flex-shrink: 0; }
+  .log-action { color: var(--cheong); }
+  .log-player { color: var(--hwang); }
+  .log-detail { color: rgba(232,224,213,0.5); }
+
+  /* ── 서버 상태 ── */
+  .health-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(232,224,213,0.04);
+    font-size: 12px;
+  }
+
+  .health-row:last-child { border-bottom: none; }
+  .health-key { color: rgba(232,224,213,0.4); font-size: 11px; letter-spacing: 0.05em; }
+  .health-val { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--baek); }
+
+  .endpoint-pill {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--border-dim);
+    border-radius: 3px;
+    padding: 5px 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: rgba(232,224,213,0.45);
+  }
+
+  /* ── 스크롤바 ── */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,229,204,0.2); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0,229,204,0.4); }
+
+  /* ── 토스트 ── */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    z-index: 200;
+    backdrop-filter: blur(8px);
+    border: 1px solid;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  .toast-ok {
+    background: rgba(0,229,204,0.12);
+    border-color: rgba(0,229,204,0.4);
+    color: var(--cheong);
+  }
+
+  .toast-err {
+    background: rgba(255,45,85,0.12);
+    border-color: rgba(255,45,85,0.4);
+    color: var(--jeok);
+  }
+
+  /* ── 로그인 ── */
+  .login-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .login-card {
+    width: 340px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 36px 32px;
+    position: relative;
+    box-shadow: 0 0 60px rgba(0,229,204,0.06), 0 0 120px rgba(255,45,85,0.04);
+  }
+
+  .login-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--jeok), var(--hwang), var(--cheong), var(--hwang), var(--jeok));
+    border-radius: 8px 8px 0 0;
+  }
+
+  .login-seal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border: 2px solid var(--jeok);
+    border-radius: 6px;
+    font-family: 'Noto Serif KR', serif;
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--jeok);
+    margin: 0 auto 16px;
+    transform: rotate(5deg);
+    box-shadow: var(--glow-jeok);
+  }
+
+  .login-title {
+    text-align: center;
+    font-family: 'Noto Serif KR', serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--cheong);
+    text-transform: uppercase;
+    text-shadow: var(--glow-cheong);
+    margin-bottom: 4px;
+  }
+
+  .login-sub {
+    text-align: center;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: rgba(232,224,213,0.25);
+    margin-bottom: 28px;
+    text-transform: uppercase;
+  }
+
+  /* ── 상인 카드 ── */
+  .merchant-card {
+    background: var(--card);
+    border: 1px solid var(--border-dim);
+    border-radius: 6px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .merchant-card:hover { border-color: rgba(0,229,204,0.25); }
+
+  .merchant-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--hwang);
+    box-shadow: var(--glow-hwang);
+  }
+
   [x-cloak] { display: none !important; }
+
+  /* ── 구분선 ── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border-dim);
+    margin: 16px 0;
+  }
+
+  .section-label {
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(232,224,213,0.25);
+    padding: 8px 12px;
+    margin-bottom: 4px;
+  }
 </style>
 </head>
 <body x-cloak>
 
-<!-- ─── 로그인 ─── -->
-<div x-show="!token" class="min-h-screen flex items-center justify-center">
-  <div class="card p-10 w-80 text-center">
-    <div class="text-xs tracking-widest mb-1 text-gray-500">CONNECT:SEOUL</div>
-    <div class="text-2xl font-bold neon mb-6">어드민 패널</div>
+<!-- ═══ 로그인 ═══ -->
+<div x-show="!token" class="login-screen">
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 30% 60%, rgba(255,45,85,0.04) 0%, transparent 60%), radial-gradient(ellipse at 70% 30%, rgba(0,229,204,0.05) 0%, transparent 60%);pointer-events:none;"></div>
+  <div class="login-card">
+    <div class="login-seal">관</div>
+    <div class="login-title">Connect : Seoul</div>
+    <div class="login-sub">관아 시스템 — Admin Panel</div>
     <form @submit.prevent="login()">
-      <input type="password" x-model="loginPw" placeholder="관리자 비밀번호" class="mb-3" autofocus>
-      <div x-show="loginError" class="text-red-400 text-xs mb-3" x-text="loginError"></div>
-      <button type="submit" class="btn-neon w-full">로그인</button>
+      <div style="margin-bottom:12px">
+        <label class="form-label">관리자 암호</label>
+        <input type="password" x-model="loginPw" placeholder="••••••••••••" autofocus>
+      </div>
+      <div x-show="loginError" style="color:var(--jeok);font-size:11px;margin-bottom:12px;letter-spacing:0.05em" x-text="loginError"></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">
+        <span>접속</span>
+        <span style="opacity:0.6;font-size:10px">→</span>
+      </button>
     </form>
   </div>
 </div>
 
-<!-- ─── 메인 레이아웃 ─── -->
-<div x-show="token" class="flex min-h-screen">
+<!-- ═══ 메인 레이아웃 ═══ -->
+<div x-show="token" style="display:flex;min-height:100vh;position:relative;z-index:1">
 
   <!-- 사이드바 -->
-  <aside class="w-56 flex-shrink-0 border-r border-gray-800 flex flex-col" style="background:#111118">
-    <div class="p-5 border-b border-gray-800">
-      <div class="text-xs text-gray-500 tracking-widest">CONNECT:SEOUL</div>
-      <div class="font-bold neon text-sm mt-1">어드민 패널</div>
+  <aside class="sidebar">
+    <div class="dancheong-bar"></div>
+    <div class="sidebar-brand">
+      <div class="brand-seal">관</div>
+      <div class="brand-title">connect:seoul</div>
+      <div class="brand-sub">Admin Console v2</div>
     </div>
-    <nav class="flex-1 p-3 space-y-1">
+
+    <div class="nav-section">
+      <div class="section-label">관리</div>
       <template x-for="item in navItems" :key="item.id">
         <button @click="page = item.id; loadPage()"
-          :class="['sidebar-item flex items-center gap-3 w-full text-left px-3 py-2.5 rounded text-sm', page === item.id ? 'active neon' : 'text-gray-400']">
-          <span x-text="item.icon" class="text-base"></span>
+          :class="['nav-item', page === item.id ? 'active' : '']">
+          <span class="nav-icon" x-text="item.icon"></span>
           <span x-text="item.label"></span>
         </button>
       </template>
-    </nav>
-    <div class="p-4 border-t border-gray-800">
-      <button @click="logout()" class="btn-ghost w-full text-sm text-gray-400">로그아웃</button>
+    </div>
+
+    <div class="sidebar-footer">
+      <button @click="logout()" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center">
+        로그아웃
+      </button>
     </div>
   </aside>
 
-  <!-- 콘텐츠 -->
-  <main class="flex-1 overflow-auto">
+  <!-- 콘텐츠 영역 -->
+  <div class="main-wrapper">
+    <div class="dancheong-bar"></div>
 
     <!-- 상단 바 -->
-    <header class="border-b border-gray-800 px-6 py-4 flex items-center justify-between" style="background:#111118">
-      <h1 class="font-bold text-base" x-text="navItems.find(n=>n.id===page)?.label || ''"></h1>
-      <div class="flex items-center gap-3 text-xs text-gray-500">
-        <span>서버: <span class="neon" x-text="health.status || '—'"></span></span>
-        <span>업타임: <span class="text-gray-300" x-text="uptimeStr"></span></span>
-        <button @click="loadPage()" class="btn-ghost text-xs px-3 py-1.5">↻ 새로고침</button>
+    <header class="topbar">
+      <div class="topbar-title" x-text="navItems.find(n=>n.id===page)?.label || ''"></div>
+      <div class="topbar-meta">
+        <span style="color:rgba(232,224,213,0.35)">
+          <span class="status-dot"></span>
+          <span style="color:var(--cheong)" x-text="health.status || 'unknown'"></span>
+        </span>
+        <span style="color:rgba(232,224,213,0.25)">
+          업타임 <span style="color:rgba(232,224,213,0.5);font-family:'IBM Plex Mono',monospace" x-text="uptimeStr"></span>
+        </span>
+        <button @click="loadPage()" class="btn btn-ghost btn-sm">↻ 갱신</button>
       </div>
     </header>
 
-    <div class="p-6">
+    <div class="content">
 
       <!-- 로딩 -->
-      <div x-show="loading" class="text-center py-20 text-gray-500">불러오는 중...</div>
+      <div x-show="loading" style="text-align:center;padding:80px 0;color:rgba(232,224,213,0.25);font-size:11px;letter-spacing:0.2em">
+        <div style="margin-bottom:8px;font-size:20px;color:var(--cheong)">◈</div>
+        로딩 중...
+      </div>
 
       <!-- ─── 대시보드 ─── -->
       <div x-show="!loading && page === 'dashboard'">
-        <div class="grid grid-cols-4 gap-4 mb-6">
-          <div class="stat-card"><div class="text-xs text-gray-500 mb-1">플레이어</div><div class="text-3xl font-bold neon" x-text="stats.playerCount ?? '—'"></div></div>
-          <div class="stat-card"><div class="text-xs text-gray-500 mb-1">거래 건수</div><div class="text-3xl font-bold" style="color:var(--gold)" x-text="stats.tradeCount ?? '—'"></div></div>
-          <div class="stat-card"><div class="text-xs text-gray-500 mb-1">상인</div><div class="text-3xl font-bold text-purple-400" x-text="stats.merchantCount ?? '—'"></div></div>
-          <div class="stat-card"><div class="text-xs text-gray-500 mb-1">퀘스트</div><div class="text-3xl font-bold text-blue-400" x-text="stats.questCount ?? '—'"></div></div>
+        <div class="stat-grid">
+          <div class="stat-card s-cheong">
+            <div class="stat-label">플레이어</div>
+            <div class="stat-value c-cheong" x-text="stats.playerCount ?? '—'"></div>
+          </div>
+          <div class="stat-card s-hwang">
+            <div class="stat-label">거래 건수</div>
+            <div class="stat-value c-hwang" x-text="stats.tradeCount ?? '—'"></div>
+          </div>
+          <div class="stat-card s-jeok">
+            <div class="stat-label">상인</div>
+            <div class="stat-value c-jeok" x-text="stats.merchantCount ?? '—'"></div>
+          </div>
+          <div class="stat-card s-baek">
+            <div class="stat-label">퀘스트</div>
+            <div class="stat-value c-baek" x-text="stats.questCount ?? '—'"></div>
+          </div>
         </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="card p-4">
-            <div class="text-xs text-gray-500 mb-3 font-semibold tracking-wider">최근 가입 플레이어</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-accent"></div>
+              <span class="card-title">최근 가입 플레이어</span>
+            </div>
             <table>
               <thead><tr><th>이름</th><th>레벨</th><th>골드</th><th>가입일</th></tr></thead>
               <tbody>
                 <template x-for="p in stats.recentPlayers || []" :key="p.name">
                   <tr>
-                    <td x-text="p.name"></td>
-                    <td><span class="badge badge-green" x-text="'Lv.' + p.level"></span></td>
-                    <td x-text="(p.money||0).toLocaleString() + 'G'"></td>
-                    <td class="text-gray-500" x-text="fmtDate(p.created_at)"></td>
+                    <td x-text="p.name" style="font-weight:500"></td>
+                    <td><span class="badge badge-cheong" x-text="'Lv.' + p.level"></span></td>
+                    <td style="font-family:'IBM Plex Mono',monospace;color:var(--hwang)" x-text="(p.money||0).toLocaleString() + 'G'"></td>
+                    <td style="color:rgba(232,224,213,0.35);font-size:11px" x-text="fmtDate(p.created_at)"></td>
                   </tr>
                 </template>
               </tbody>
             </table>
           </div>
-          <div class="card p-4">
-            <div class="text-xs text-gray-500 mb-3 font-semibold tracking-wider">최근 거래</div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-accent" style="background:var(--hwang);box-shadow:var(--glow-hwang)"></div>
+              <span class="card-title">최근 거래</span>
+            </div>
             <table>
               <thead><tr><th>플레이어</th><th>상인</th><th>금액</th><th>일시</th></tr></thead>
               <tbody>
                 <template x-for="t in stats.recentTrades || []" :key="t.id">
                   <tr>
                     <td x-text="t.player_name || '—'"></td>
-                    <td x-text="t.merchant_name || '—'"></td>
-                    <td x-text="(t.total_price||0).toLocaleString() + 'G'"></td>
-                    <td class="text-gray-500" x-text="fmtDate(t.created_at)"></td>
+                    <td style="color:rgba(232,224,213,0.5)" x-text="t.merchant_name || '—'"></td>
+                    <td style="font-family:'IBM Plex Mono',monospace;color:var(--hwang)" x-text="(t.total_price||0).toLocaleString() + 'G'"></td>
+                    <td style="color:rgba(232,224,213,0.35);font-size:11px" x-text="fmtDate(t.created_at)"></td>
                   </tr>
                 </template>
               </tbody>
@@ -143,52 +848,52 @@
 
       <!-- ─── 플레이어 ─── -->
       <div x-show="!loading && page === 'players'">
-        <div class="flex gap-3 mb-4">
-          <input x-model="playerSearch" @input.debounce.400ms="loadPlayers()" placeholder="이름 또는 이메일 검색..." class="max-w-xs">
-          <button @click="loadPlayers()" class="btn-ghost">검색</button>
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+          <input x-model="playerSearch" @input.debounce.400ms="loadPlayers()" placeholder="이름 또는 이메일 검색..." style="max-width:280px">
+          <button @click="loadPlayers()" class="btn btn-ghost">검색</button>
         </div>
-        <div class="card overflow-hidden mb-4">
+        <div class="card" style="overflow:hidden;margin-bottom:16px">
           <table>
             <thead><tr><th>이름</th><th>이메일</th><th>레벨</th><th>골드</th><th>라이센스</th><th>상태</th><th>가입일</th><th></th></tr></thead>
             <tbody>
               <template x-for="p in players" :key="p.id">
                 <tr>
-                  <td class="font-medium" x-text="p.name"></td>
-                  <td class="text-gray-400 text-xs" x-text="p.email"></td>
-                  <td><span class="badge badge-green" x-text="'Lv.' + p.level"></span></td>
-                  <td x-text="(p.money||0).toLocaleString() + 'G'"></td>
-                  <td x-text="p.current_license"></td>
-                  <td><span :class="p.is_active ? 'badge badge-green' : 'badge badge-red'" x-text="p.is_active ? '활성' : '정지'"></span></td>
-                  <td class="text-gray-500 text-xs" x-text="fmtDate(p.created_at)"></td>
-                  <td class="text-right"><button @click="openPlayer(p)" class="btn-ghost text-xs">수정</button></td>
+                  <td style="font-weight:500" x-text="p.name"></td>
+                  <td style="color:rgba(232,224,213,0.4);font-size:11px" x-text="p.email"></td>
+                  <td><span class="badge badge-cheong" x-text="'Lv.' + p.level"></span></td>
+                  <td style="font-family:'IBM Plex Mono',monospace;color:var(--hwang)" x-text="(p.money||0).toLocaleString() + 'G'"></td>
+                  <td style="font-family:'IBM Plex Mono',monospace;font-size:11px" x-text="p.current_license"></td>
+                  <td><span :class="p.is_active ? 'badge badge-cheong' : 'badge badge-jeok'" x-text="p.is_active ? '활성' : '정지'"></span></td>
+                  <td style="color:rgba(232,224,213,0.35);font-size:11px" x-text="fmtDate(p.created_at)"></td>
+                  <td style="text-align:right"><button @click="openPlayer(p)" class="btn btn-ghost btn-sm">수정</button></td>
                 </tr>
               </template>
             </tbody>
           </table>
         </div>
-        <div class="flex items-center gap-4 text-sm text-gray-400">
+        <div class="pagination">
           <span>총 <strong x-text="playerTotal"></strong>명</span>
-          <button @click="playerPage--; loadPlayers()" :disabled="playerPage<=1" class="btn-ghost text-xs disabled:opacity-30">← 이전</button>
-          <span x-text="playerPage + ' / ' + Math.ceil(playerTotal/20)"></span>
-          <button @click="playerPage++; loadPlayers()" :disabled="playerPage >= Math.ceil(playerTotal/20)" class="btn-ghost text-xs disabled:opacity-30">다음 →</button>
+          <button @click="playerPage--; loadPlayers()" :disabled="playerPage<=1" class="btn btn-ghost btn-sm">← 이전</button>
+          <span style="font-family:'IBM Plex Mono',monospace" x-text="playerPage + ' / ' + Math.ceil(playerTotal/20)"></span>
+          <button @click="playerPage++; loadPlayers()" :disabled="playerPage >= Math.ceil(playerTotal/20)" class="btn btn-ghost btn-sm">다음 →</button>
         </div>
       </div>
 
       <!-- ─── 상인 ─── -->
       <div x-show="!loading && page === 'merchants'">
-        <div class="grid grid-cols-3 gap-4">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
           <template x-for="m in merchants" :key="m.id">
-            <div class="card p-4">
-              <div class="flex items-start justify-between mb-2">
+            <div class="merchant-card">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
                 <div>
-                  <div class="font-bold" x-text="m.name"></div>
-                  <div class="text-xs text-gray-500" x-text="m.title"></div>
+                  <div style="font-family:'Noto Serif KR',serif;font-weight:600;font-size:14px;margin-bottom:3px" x-text="m.name"></div>
+                  <div style="font-size:10px;color:rgba(232,224,213,0.4)" x-text="m.title"></div>
                 </div>
-                <span :class="m.is_active ? 'badge badge-green' : 'badge badge-red'" x-text="m.is_active ? '활성' : '비활성'"></span>
+                <span :class="m.is_active ? 'badge badge-cheong' : 'badge badge-jeok'" x-text="m.is_active ? '활성' : '비활성'"></span>
               </div>
-              <div class="text-xs text-gray-500 mb-2" x-text="'구역: ' + (m.district || m.id)"></div>
-              <div class="text-xs text-gray-500 mb-3" x-text="'인벤토리: ' + (m.inventory?.length || 0) + '종'"></div>
-              <button @click="openMerchant(m)" class="btn-ghost text-xs w-full">수정</button>
+              <div style="font-size:10px;color:rgba(232,224,213,0.35);margin-bottom:4px" x-text="'구역: ' + (m.district || m.id)"></div>
+              <div style="font-size:10px;color:rgba(232,224,213,0.35);margin-bottom:14px" x-text="'인벤토리: ' + (m.inventory?.length || 0) + '종'"></div>
+              <button @click="openMerchant(m)" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center">수정</button>
             </div>
           </template>
         </div>
@@ -196,166 +901,223 @@
 
       <!-- ─── 퀘스트 ─── -->
       <div x-show="!loading && page === 'quests'">
-        <div class="card overflow-hidden mb-4">
+        <div class="card" style="overflow:hidden;margin-bottom:16px">
           <table>
             <thead><tr><th>플레이어</th><th>퀘스트 ID</th><th>상태</th><th>업데이트</th></tr></thead>
             <tbody>
               <template x-for="q in quests" :key="q.id">
                 <tr>
-                  <td class="font-medium" x-text="q.player_name || '—'"></td>
-                  <td class="text-xs text-gray-400" x-text="q.quest_id"></td>
-                  <td><span :class="q.status === 'completed' ? 'badge badge-green' : q.status === 'active' ? 'badge badge-gold' : 'badge badge-gray'" x-text="q.status"></span></td>
-                  <td class="text-gray-500 text-xs" x-text="fmtDate(q.updated_at)"></td>
+                  <td style="font-weight:500" x-text="q.player_name || '—'"></td>
+                  <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:rgba(232,224,213,0.5)" x-text="q.quest_id"></td>
+                  <td>
+                    <span :class="q.status === 'completed' ? 'badge badge-cheong' : q.status === 'active' ? 'badge badge-hwang' : 'badge badge-dim'"
+                      x-text="q.status === 'completed' ? '완료' : q.status === 'active' ? '진행중' : q.status"></span>
+                  </td>
+                  <td style="color:rgba(232,224,213,0.35);font-size:11px" x-text="fmtDate(q.updated_at)"></td>
                 </tr>
               </template>
             </tbody>
           </table>
         </div>
-        <div class="flex items-center gap-4 text-sm text-gray-400">
+        <div class="pagination">
           <span>총 <strong x-text="questTotal"></strong>건</span>
-          <button @click="questPage--; loadQuests()" :disabled="questPage<=1" class="btn-ghost text-xs disabled:opacity-30">← 이전</button>
-          <span x-text="questPage"></span>
-          <button @click="questPage++; loadQuests()" :disabled="quests.length < 30" class="btn-ghost text-xs disabled:opacity-30">다음 →</button>
+          <button @click="questPage--; loadQuests()" :disabled="questPage<=1" class="btn btn-ghost btn-sm">← 이전</button>
+          <span style="font-family:'IBM Plex Mono',monospace" x-text="questPage"></span>
+          <button @click="questPage++; loadQuests()" :disabled="quests.length < 30" class="btn btn-ghost btn-sm">다음 →</button>
         </div>
       </div>
 
       <!-- ─── 거래 내역 ─── -->
       <div x-show="!loading && page === 'trades'">
-        <div class="card overflow-hidden mb-4">
+        <div class="card" style="overflow:hidden;margin-bottom:16px">
           <table>
             <thead><tr><th>플레이어</th><th>상인</th><th>타입</th><th>아이템</th><th>수량</th><th>금액</th><th>일시</th></tr></thead>
             <tbody>
               <template x-for="t in trades" :key="t.id">
                 <tr>
-                  <td class="font-medium" x-text="t.player_name || '—'"></td>
-                  <td x-text="t.merchant_name || '—'"></td>
-                  <td><span :class="t.trade_type==='buy' ? 'badge badge-green' : 'badge badge-red'" x-text="t.trade_type==='buy' ? '구매' : '판매'"></span></td>
-                  <td class="text-gray-400 text-xs" x-text="t.item_id || '—'"></td>
-                  <td x-text="t.quantity || 1"></td>
-                  <td class="font-medium" style="color:var(--gold)" x-text="(t.total_price||0).toLocaleString() + 'G'"></td>
-                  <td class="text-gray-500 text-xs" x-text="fmtDate(t.created_at)"></td>
+                  <td style="font-weight:500" x-text="t.player_name || '—'"></td>
+                  <td style="color:rgba(232,224,213,0.5)" x-text="t.merchant_name || '—'"></td>
+                  <td><span :class="t.trade_type==='buy' ? 'badge badge-cheong' : 'badge badge-jeok'" x-text="t.trade_type==='buy' ? '구매' : '판매'"></span></td>
+                  <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:rgba(232,224,213,0.45)" x-text="t.item_id || '—'"></td>
+                  <td style="font-family:'IBM Plex Mono',monospace;font-size:11px" x-text="t.quantity || 1"></td>
+                  <td style="font-family:'IBM Plex Mono',monospace;color:var(--hwang)" x-text="(t.total_price||0).toLocaleString() + 'G'"></td>
+                  <td style="color:rgba(232,224,213,0.35);font-size:11px" x-text="fmtDate(t.created_at)"></td>
                 </tr>
               </template>
             </tbody>
           </table>
         </div>
-        <div class="flex items-center gap-4 text-sm text-gray-400">
+        <div class="pagination">
           <span>총 <strong x-text="tradeTotal"></strong>건</span>
-          <button @click="tradePage--; loadTrades()" :disabled="tradePage<=1" class="btn-ghost text-xs disabled:opacity-30">← 이전</button>
-          <span x-text="tradePage"></span>
-          <button @click="tradePage++; loadTrades()" :disabled="trades.length < 30" class="btn-ghost text-xs disabled:opacity-30">다음 →</button>
+          <button @click="tradePage--; loadTrades()" :disabled="tradePage<=1" class="btn btn-ghost btn-sm">← 이전</button>
+          <span style="font-family:'IBM Plex Mono',monospace" x-text="tradePage"></span>
+          <button @click="tradePage++; loadTrades()" :disabled="trades.length < 30" class="btn btn-ghost btn-sm">다음 →</button>
         </div>
       </div>
 
-      <!-- ─── 로그 ─── -->
+      <!-- ─── 활동 로그 ─── -->
       <div x-show="!loading && page === 'logs'">
-        <div class="card p-4 mb-4">
+        <div class="card" style="margin-bottom:16px">
           <template x-for="l in logs" :key="l.id">
             <div class="log-entry">
-              <span class="text-gray-600" x-text="fmtDate(l.created_at) + ' '"></span>
-              <span class="neon" x-text="'[' + (l.action || l.activity_type || 'event') + '] '"></span>
-              <span class="text-gray-300" x-text="l.player_name ? '[' + l.player_name + '] ' : ''"></span>
-              <span class="text-gray-400" x-text="l.details || l.description || ''"></span>
+              <span class="log-time" x-text="fmtDate(l.created_at)"></span>
+              <span class="log-action" x-text="'[' + (l.action || l.activity_type || 'event') + ']'"></span>
+              <span class="log-player" x-text="l.player_name ? '[' + l.player_name + ']' : ''"></span>
+              <span class="log-detail" x-text="l.details || l.description || ''"></span>
             </div>
           </template>
-          <div x-show="!logs.length" class="text-gray-500 text-sm py-4 text-center">로그 없음</div>
+          <div x-show="!logs.length" style="text-align:center;padding:32px;color:rgba(232,224,213,0.25);font-size:11px;letter-spacing:0.1em">로그 없음</div>
         </div>
-        <div class="flex items-center gap-4 text-sm text-gray-400">
+        <div class="pagination">
           <span>총 <strong x-text="logTotal"></strong>건</span>
-          <button @click="logPage--; loadLogs()" :disabled="logPage<=1" class="btn-ghost text-xs disabled:opacity-30">← 이전</button>
-          <span x-text="logPage"></span>
-          <button @click="logPage++; loadLogs()" :disabled="logs.length < 50" class="btn-ghost text-xs disabled:opacity-30">다음 →</button>
+          <button @click="logPage--; loadLogs()" :disabled="logPage<=1" class="btn btn-ghost btn-sm">← 이전</button>
+          <span style="font-family:'IBM Plex Mono',monospace" x-text="logPage"></span>
+          <button @click="logPage++; loadLogs()" :disabled="logs.length < 50" class="btn btn-ghost btn-sm">다음 →</button>
         </div>
       </div>
 
       <!-- ─── 서버 상태 ─── -->
       <div x-show="!loading && page === 'server'">
-        <div class="grid grid-cols-2 gap-4 mb-6">
-          <div class="stat-card">
-            <div class="text-xs text-gray-500 mb-3 tracking-wider font-semibold">서버 상태</div>
-            <div class="space-y-3 text-sm">
-              <div class="flex justify-between"><span class="text-gray-500">상태</span><span class="badge badge-green" x-text="health.status || '—'"></span></div>
-              <div class="flex justify-between"><span class="text-gray-500">업타임</span><span class="neon" x-text="uptimeStr"></span></div>
-              <div class="flex justify-between"><span class="text-gray-500">Node.js</span><span x-text="health.nodeVersion || '—'"></span></div>
-              <div class="flex justify-between"><span class="text-gray-500">확인 시각</span><span class="text-gray-400" x-text="fmtDate(health.timestamp)"></span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-accent"></div>
+              <span class="card-title">서버 상태</span>
+            </div>
+            <div style="padding:4px 20px 16px">
+              <div class="health-row">
+                <span class="health-key">상태</span>
+                <span class="badge badge-cheong" x-text="health.status || '—'"></span>
+              </div>
+              <div class="health-row">
+                <span class="health-key">업타임</span>
+                <span class="health-val" style="color:var(--cheong)" x-text="uptimeStr"></span>
+              </div>
+              <div class="health-row">
+                <span class="health-key">Node.js</span>
+                <span class="health-val" x-text="health.nodeVersion || '—'"></span>
+              </div>
+              <div class="health-row">
+                <span class="health-key">확인 시각</span>
+                <span class="health-val" style="color:rgba(232,224,213,0.4)" x-text="fmtDate(health.timestamp)"></span>
+              </div>
             </div>
           </div>
-          <div class="stat-card">
-            <div class="text-xs text-gray-500 mb-3 tracking-wider font-semibold">메모리 사용량</div>
-            <div class="space-y-3 text-sm" x-show="health.memory">
-              <div class="flex justify-between"><span class="text-gray-500">RSS</span><span x-text="fmtMem(health.memory?.rss)"></span></div>
-              <div class="flex justify-between"><span class="text-gray-500">Heap 사용</span><span class="neon" x-text="fmtMem(health.memory?.heapUsed)"></span></div>
-              <div class="flex justify-between"><span class="text-gray-500">Heap 전체</span><span x-text="fmtMem(health.memory?.heapTotal)"></span></div>
-              <div class="flex justify-between"><span class="text-gray-500">External</span><span x-text="fmtMem(health.memory?.external)"></span></div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-accent" style="background:var(--hwang);box-shadow:var(--glow-hwang)"></div>
+              <span class="card-title">메모리 사용량</span>
+            </div>
+            <div style="padding:4px 20px 16px" x-show="health.memory">
+              <div class="health-row">
+                <span class="health-key">RSS</span>
+                <span class="health-val" x-text="fmtMem(health.memory?.rss)"></span>
+              </div>
+              <div class="health-row">
+                <span class="health-key">Heap 사용</span>
+                <span class="health-val" style="color:var(--hwang)" x-text="fmtMem(health.memory?.heapUsed)"></span>
+              </div>
+              <div class="health-row">
+                <span class="health-key">Heap 전체</span>
+                <span class="health-val" x-text="fmtMem(health.memory?.heapTotal)"></span>
+              </div>
+              <div class="health-row">
+                <span class="health-key">External</span>
+                <span class="health-val" x-text="fmtMem(health.memory?.external)"></span>
+              </div>
             </div>
           </div>
         </div>
-        <div class="card p-4">
-          <div class="text-xs text-gray-500 mb-3 tracking-wider font-semibold">API 엔드포인트</div>
-          <div class="grid grid-cols-3 gap-2 text-xs">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-accent" style="background:var(--jeok);box-shadow:var(--glow-jeok)"></div>
+            <span class="card-title">API 엔드포인트</span>
+          </div>
+          <div style="padding:16px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
             <template x-for="ep in endpoints" :key="ep">
-              <div class="bg-gray-900 rounded px-3 py-2 font-mono text-gray-400" x-text="ep"></div>
+              <div class="endpoint-pill" x-text="ep"></div>
             </template>
           </div>
         </div>
       </div>
 
-    </div>
-  </main>
-</div>
+    </div><!-- /content -->
+  </div><!-- /main-wrapper -->
+</div><!-- /main layout -->
 
-<!-- ─── 플레이어 수정 모달 ─── -->
+<!-- ═══ 플레이어 수정 모달 ═══ -->
 <div x-show="playerModal" class="modal-overlay" @click.self="playerModal = false">
   <div class="modal" @click.stop>
-    <div class="font-bold text-lg mb-4" x-text="'플레이어 수정: ' + (editPlayer.name || '')"></div>
-    <div class="space-y-3 mb-5">
-      <div><label class="text-xs text-gray-500 mb-1 block">레벨</label><input type="number" x-model.number="editPlayer.level"></div>
-      <div><label class="text-xs text-gray-500 mb-1 block">골드</label><input type="number" x-model.number="editPlayer.money"></div>
-      <div><label class="text-xs text-gray-500 mb-1 block">라이센스</label><input type="number" x-model.number="editPlayer.current_license"></div>
-      <div class="flex items-center gap-3">
-        <input type="checkbox" x-model="editPlayer.is_active" class="w-4 h-4">
-        <label class="text-sm">계정 활성화</label>
+    <div class="modal-title" x-text="'플레이어 수정 — ' + (editPlayer.name || '')"></div>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px">
+      <div>
+        <label class="form-label">레벨</label>
+        <input type="number" x-model.number="editPlayer.level">
+      </div>
+      <div>
+        <label class="form-label">골드</label>
+        <input type="number" x-model.number="editPlayer.money">
+      </div>
+      <div>
+        <label class="form-label">라이센스</label>
+        <input type="number" x-model.number="editPlayer.current_license">
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" x-model="editPlayer.is_active">
+        <label style="font-size:12px;color:rgba(232,224,213,0.6)">계정 활성화</label>
       </div>
     </div>
-    <div class="flex justify-between">
-      <button @click="deletePlayer()" class="btn-danger text-sm">삭제</button>
-      <div class="flex gap-2">
-        <button @click="playerModal = false" class="btn-ghost text-sm">취소</button>
-        <button @click="savePlayer()" class="btn-neon text-sm">저장</button>
+    <div style="display:flex;justify-content:space-between">
+      <button @click="deletePlayer()" class="btn btn-danger btn-sm">삭제</button>
+      <div style="display:flex;gap:8px">
+        <button @click="playerModal = false" class="btn btn-ghost btn-sm">취소</button>
+        <button @click="savePlayer()" class="btn btn-primary btn-sm">저장</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ─── 상인 수정 모달 ─── -->
+<!-- ═══ 상인 수정 모달 ═══ -->
 <div x-show="merchantModal" class="modal-overlay" @click.self="merchantModal = false">
   <div class="modal" @click.stop>
-    <div class="font-bold text-lg mb-4" x-text="'상인 수정: ' + (editMerchant.name || '')"></div>
-    <div class="space-y-3 mb-5">
-      <div><label class="text-xs text-gray-500 mb-1 block">이름</label><input type="text" x-model="editMerchant.name"></div>
-      <div><label class="text-xs text-gray-500 mb-1 block">직함</label><input type="text" x-model="editMerchant.title"></div>
-      <div class="grid grid-cols-2 gap-3">
-        <div><label class="text-xs text-gray-500 mb-1 block">위도</label><input type="number" step="0.0001" x-model.number="editMerchant.latitude"></div>
-        <div><label class="text-xs text-gray-500 mb-1 block">경도</label><input type="number" step="0.0001" x-model.number="editMerchant.longitude"></div>
+    <div class="modal-title" x-text="'상인 수정 — ' + (editMerchant.name || '')"></div>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px">
+      <div>
+        <label class="form-label">이름</label>
+        <input type="text" x-model="editMerchant.name">
       </div>
-      <div class="flex items-center gap-3">
-        <input type="checkbox" x-model="editMerchant.is_active" class="w-4 h-4">
-        <label class="text-sm">상인 활성화</label>
+      <div>
+        <label class="form-label">직함</label>
+        <input type="text" x-model="editMerchant.title">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="form-label">위도</label>
+          <input type="number" step="0.0001" x-model.number="editMerchant.latitude">
+        </div>
+        <div>
+          <label class="form-label">경도</label>
+          <input type="number" step="0.0001" x-model.number="editMerchant.longitude">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" x-model="editMerchant.is_active">
+        <label style="font-size:12px;color:rgba(232,224,213,0.6)">상인 활성화</label>
       </div>
     </div>
-    <div class="text-xs text-gray-500 mb-3" x-show="editMerchant.inventory?.length">
-      인벤토리: <span x-text="editMerchant.inventory?.length"></span>개 아이템
+    <div style="font-size:10px;color:rgba(232,224,213,0.3);margin-bottom:14px" x-show="editMerchant.inventory?.length">
+      인벤토리 <span style="color:var(--cheong);font-family:'IBM Plex Mono',monospace" x-text="editMerchant.inventory?.length"></span>개 아이템
     </div>
-    <div class="flex justify-end gap-2">
-      <button @click="merchantModal = false" class="btn-ghost text-sm">취소</button>
-      <button @click="saveMerchant()" class="btn-neon text-sm">저장</button>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button @click="merchantModal = false" class="btn btn-ghost btn-sm">취소</button>
+      <button @click="saveMerchant()" class="btn btn-primary btn-sm">저장</button>
     </div>
   </div>
 </div>
 
-<!-- ─── 알림 토스트 ─── -->
-<div x-show="toast.show" x-transition class="fixed bottom-6 right-6 px-4 py-3 rounded shadow-xl text-sm font-medium z-50"
-  :class="toast.ok ? 'bg-emerald-900 border border-emerald-500 text-emerald-200' : 'bg-red-900 border border-red-500 text-red-200'"
+<!-- ═══ 토스트 ═══ -->
+<div x-show="toast.show" x-transition class="toast"
+  :class="toast.ok ? 'toast-ok' : 'toast-err'"
   x-text="toast.msg"></div>
 
 <script>
@@ -366,13 +1128,13 @@ function app() {
     page: 'dashboard', loading: false,
 
     navItems: [
-      { id: 'dashboard', label: '대시보드', icon: '⊞' },
-      { id: 'players',   label: '플레이어 관리', icon: '👤' },
-      { id: 'merchants', label: '상인 관리', icon: '🏮' },
-      { id: 'quests',    label: '퀘스트', icon: '📜' },
-      { id: 'trades',    label: '거래 내역', icon: '💱' },
-      { id: 'logs',      label: '활동 로그', icon: '📋' },
-      { id: 'server',    label: '서버 상태', icon: '🖥' },
+      { id: 'dashboard', label: '대시보드',    icon: '◈' },
+      { id: 'players',   label: '플레이어 관리', icon: '人' },
+      { id: 'merchants', label: '상인 관리',    icon: '商' },
+      { id: 'quests',    label: '퀘스트',       icon: '卷' },
+      { id: 'trades',    label: '거래 내역',    icon: '交' },
+      { id: 'logs',      label: '활동 로그',    icon: '錄' },
+      { id: 'server',    label: '서버 상태',    icon: '令' },
     ],
 
     endpoints: [

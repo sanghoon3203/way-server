@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"curl -sv http://localhost:3000/admin 2>&1 | head -20\\ncurl -s -X POST http://localhost:3000/admin/api/auth -H \\\"Content-Type: application/json\\\" -d '{\\\"password\\\":\\\"connectseoul_admin_2026...",
+  "error": "Exit code 1\nhead: curl: No such file or directory\nhead: -s: No such file or directory\nhead: -X: No such file or directory\nhead: POST: No such file or directory\nhead: http://localhost:3000/admin/api/auth: No such file or directory\nhead: -H: No such file or directory\nhead: Content-Type: application/json: No such file or directory\nhead: -d: No such file or directory\nhead: {\"password\":\"connectseoul_admin_2026\"}: No such file or directory\n\nhead: curl: No such file or directory\nhead: -s: No such file ...",
+  "timestamp": "2026-02-23T04:58:08.988Z",
+  "retry_count": 5
+}

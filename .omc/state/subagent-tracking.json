@@ -1,0 +1,35 @@
+{
+  "agents": [
+    {
+      "agent_id": "a3e9941988da2c1cf",
+      "agent_type": "Explore",
+      "started_at": "2026-02-23T04:39:15.194Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-02-23T04:41:04.216Z",
+      "duration_ms": 109022
+    },
+    {
+      "agent_id": "ab86a7b00354c9247",
+      "agent_type": "Explore",
+      "started_at": "2026-02-23T04:39:21.007Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-02-23T04:39:38.067Z",
+      "duration_ms": 17060
+    },
+    {
+      "agent_id": "acc00e73c4c85e870",
+      "agent_type": "Bash",
+      "started_at": "2026-02-23T04:41:16.473Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-02-23T04:42:14.006Z",
+      "duration_ms": 57533
+    }
+  ],
+  "total_spawned": 3,
+  "total_completed": 3,
+  "total_failed": 0,
+  "last_updated": "2026-02-23T05:42:15.720Z"
+}

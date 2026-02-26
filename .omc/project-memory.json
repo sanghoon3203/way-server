@@ -1,0 +1,231 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1771820579832,
+  "projectRoot": "/Users/kimsanghoon/Documents/GitHub/way-server",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=18.0.0",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "express",
+        "version": "4.18.2",
+        "category": "backend"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": "Node.js 18.0.0"
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": "npm test",
+    "lintCommand": null,
+    "devCommand": "npm run dev",
+    "scripts": {
+      "start": "node ./src/server.js",
+      "dev": "nodemon ./src/server.js",
+      "test": "jest",
+      "migrate": "node ./src/database/migrate.js",
+      "seed": "node ./src/database/seed.js",
+      "build": "npm run migrate && npm run seed"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": "type-based"
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "public",
+      "scripts",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "claudedocs": {
+      "path": "claudedocs",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1771820579817,
+      "keyFiles": [
+        "Way3_Font_Integration_Guide.md",
+        "Way3_Frontend_Design.md",
+        "Way3_Mobile_Specifications.md",
+        "Way3_Server_Architecture_Guide.md",
+        "Way_Server_Onboarding.md"
+      ]
+    },
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 2,
+      "lastAccessed": 1771820579817,
+      "keyFiles": [
+        "way_game 2.sqlite",
+        "way_game.sqlite"
+      ]
+    },
+    "logs": {
+      "path": "logs",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1771820579817,
+      "keyFiles": [
+        "combined.log",
+        "error.log"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 0,
+      "lastAccessed": 1771820579822,
+      "keyFiles": []
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 1,
+      "lastAccessed": 1771820579822,
+      "keyFiles": [
+        "update_merchant_json.js"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 2,
+      "lastAccessed": 1771820579822,
+      "keyFiles": [
+        "app.js",
+        "server.js"
+      ]
+    },
+    "src/config": {
+      "path": "src/config",
+      "purpose": "Configuration files",
+      "fileCount": 1,
+      "lastAccessed": 1771820579823,
+      "keyFiles": [
+        "logger.js"
+      ]
+    },
+    "src/controllers": {
+      "path": "src/controllers",
+      "purpose": "Controllers",
+      "fileCount": 1,
+      "lastAccessed": 1771820579823,
+      "keyFiles": [
+        "UnifiedAdminController.js"
+      ]
+    },
+    "src/middleware": {
+      "path": "src/middleware",
+      "purpose": "Middleware",
+      "fileCount": 4,
+      "lastAccessed": 1771820579823,
+      "keyFiles": [
+        "adminAuth.js",
+        "auth.js",
+        "errorHandler.js"
+      ]
+    },
+    "src/routes": {
+      "path": "src/routes",
+      "purpose": "Route handlers",
+      "fileCount": 1,
+      "lastAccessed": 1771820579823,
+      "keyFiles": [
+        "admin.js"
+      ]
+    },
+    "src/services": {
+      "path": "src/services",
+      "purpose": "Business logic services",
+      "fileCount": 1,
+      "lastAccessed": 1771820579823,
+      "keyFiles": [
+        "merchantChatService.js"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "package.json",
+      "accessCount": 5,
+      "lastAccessed": 1771822489773,
+      "type": "file"
+    },
+    {
+      "path": "src/app.js",
+      "accessCount": 4,
+      "lastAccessed": 1771822481914,
+      "type": "file"
+    },
+    {
+      "path": "src/services/merchantChatService.js",
+      "accessCount": 2,
+      "lastAccessed": 1771821429850,
+      "type": "file"
+    },
+    {
+      "path": "src/database/DatabaseManager.js",
+      "accessCount": 2,
+      "lastAccessed": 1771822344279,
+      "type": "directory"
+    },
+    {
+      "path": "src/routes/admin/index.js",
+      "accessCount": 2,
+      "lastAccessed": 1771822351893,
+      "type": "file"
+    },
+    {
+      "path": ".env",
+      "accessCount": 2,
+      "lastAccessed": 1771822488638,
+      "type": "file"
+    },
+    {
+      "path": "src/utils/MetricsCollector.js",
+      "accessCount": 2,
+      "lastAccessed": 1771822655721,
+      "type": "file"
+    },
+    {
+      "path": "src/routes/api/merchant-chat.js",
+      "accessCount": 1,
+      "lastAccessed": 1771821249214,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 1,
+      "lastAccessed": 1771822086920,
+      "type": "directory"
+    },
+    {
+      "path": "src/public/admin.html",
+      "accessCount": 1,
+      "lastAccessed": 1771822458347,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
