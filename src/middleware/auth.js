@@ -34,24 +34,10 @@ const authenticateToken = async (req, res, next) => {
             });
         }
 
-        // 플레이어 정보 조회
-        const player = await DatabaseManager.get(
-            'SELECT * FROM players WHERE id = ?',
-            [decoded.playerId]
-        );
-
-        if (!player) {
-            return res.status(401).json({
-                success: false,
-                error: '플레이어 정보를 찾을 수 없습니다'
-            });
-        }
-
-        // 요청 객체에 사용자 정보 추가
+        // playerId는 JWT payload에서 직접 사용 (DB 조회 제거)
         req.user = {
             userId: user.id,
-            playerId: player.id,
-            player: player
+            playerId: decoded.playerId
         };
 
         next();
