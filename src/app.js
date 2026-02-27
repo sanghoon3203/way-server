@@ -108,6 +108,7 @@ app.use('/api/trade', require('./routes/api/trade'));
 app.use('/api/personal-items', require('./routes/api/personal-items'));
 app.use('/api/story', require('./routes/api/story'));
 app.use('/api/merchant-chat', require('./routes/api/merchant-chat'));
+app.use('/api/quests', require('./routes/api/quests'));
 
 // 어드민 라우트
 app.use('/admin', require('./routes/admin/index'));
