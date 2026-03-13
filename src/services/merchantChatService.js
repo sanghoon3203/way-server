@@ -64,10 +64,10 @@ async function sendMerchantChat(merchantId, userMessage, history = [], playerCon
 
     try {
         const model = genAI.getGenerativeModel({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-3.1-pro-preview',
             systemInstruction,
             generationConfig: {
-                maxOutputTokens: 300,
+                maxOutputTokens: 500,
                 temperature: 0.85,
                 topP: 0.9
             }

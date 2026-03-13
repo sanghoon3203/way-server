@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+.env
+logs
+*.log
+.git
+.gitignore
+README.md
+ADMIN_REFACTOR.md
+CLEANUP_PLAN.md
+claudedocs

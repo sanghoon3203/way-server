@@ -61,11 +61,57 @@ router.post('/register', [
         console.info('[REGISTER] normalized payload:', { email, playerName });
 
         const existingUser = await DatabaseManager.get(
-            'SELECT id FROM users WHERE email = ?',
+            'SELECT id, password_hash, is_active FROM users WHERE email = ?',
             [email]
         );
 
         if (existingUser) {
+            // 비밀번호가 맞으면 → 재가입 대신 자동 로그인 (Xcode 재빌드 등 앱 초기화 케이스 대응)
+            const isPasswordValid = await bcrypt.compare(password, existingUser.password_hash);
+            if (isPasswordValid) {
+                console.info('[REGISTER] email exists + password match → auto login:', email);
+
+                const player = await DatabaseManager.get(
+                    'SELECT id, name, level, money, current_license FROM players WHERE user_id = ?',
+                    [existingUser.id]
+                );
+
+                await DatabaseManager.run(
+                    'UPDATE players SET last_active = CURRENT_TIMESTAMP WHERE user_id = ?',
+                    [existingUser.id]
+                );
+
+                const token = jwt.sign(
+                    { userId: existingUser.id, playerId: player?.id },
+                    process.env.JWT_SECRET,
+                    { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+                );
+                const refreshToken = jwt.sign(
+                    { userId: existingUser.id, playerId: player?.id },
+                    process.env.JWT_REFRESH_SECRET,
+                    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+                );
+
+                return res.status(200).json({
+                    success: true,
+                    message: '기존 계정으로 로그인되었습니다',
+                    code: 'AUTO_LOGIN',
+                    data: {
+                        userId: existingUser.id,
+                        playerId: player?.id,
+                        token,
+                        refreshToken,
+                        player: player ? {
+                            id: player.id,
+                            name: player.name,
+                            level: player.level ?? 1,
+                            money: player.money ?? 0,
+                            currentLicense: player.current_license ?? 0
+                        } : null
+                    }
+                });
+            }
+
             console.warn('[REGISTER] duplicate email detected:', email);
             return res.status(409).json({
                 success: false,

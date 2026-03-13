@@ -238,7 +238,7 @@ router.post('/:id/claim', async (req, res) => {
         if (rewards.experience || rewards.exp) {
             const exp = rewards.experience || rewards.exp;
             await DatabaseManager.run(
-                'UPDATE players SET exp = exp + ? WHERE id = ?',
+                'UPDATE players SET experience = experience + ? WHERE id = ?',
                 [exp, playerId]
             );
         }

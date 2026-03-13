@@ -1,4 +1,40 @@
+# 의존성
 node_modules/
-.DS_Store
+
+# 환경변수 (절대 커밋 금지)
+.env
+.env.*
+!.env.example
+
+# 데이터베이스
+data/
+*.sqlite
+*.sqlite3
+*.db
+
+# 로그
 logs/
-data/way_game.sqlite
+*.log
+npm-debug.log*
+
+# 업로드 파일
+uploads/
+public/uploads/
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# 빌드/임시
+dist/
+.tmp/
+*.tmp
+*.temp
+
+# IDE
+.vscode/
+.idea/
+
+# PM2
+.pm2/
+ecosystem.config.js.bak

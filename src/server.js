@@ -6,6 +6,7 @@ const DatabaseManager = require('./database/DatabaseManager');
 const logger = require('./config/logger');
 const metricsCollector = require('./utils/MetricsCollector');
 const { runMigrations } = require('./database/migrate');
+const s3Backup = require('./services/S3BackupService');
 
 console.info('[ENV CHECK] JWT_SECRET exists:', !!process.env.JWT_SECRET);
 console.info('[ENV CHECK] JWT_REFRESH_SECRET exists:', !!process.env.JWT_REFRESH_SECRET);
@@ -18,6 +19,12 @@ const server = http.createServer(app);
 // 데이터베이스 초기화 및 서버 시작
 async function startServer() {
     try {
+        // S3에서 DB 복원 시도 (데이터베이스 초기화 전)
+        const restored = await s3Backup.restore();
+        if (restored) {
+            logger.info('S3에서 데이터베이스 복원 완료');
+        }
+
         // 데이터베이스 연결 및 테이블 생성
         await DatabaseManager.initialize();
         logger.info('데이터베이스 초기화 완료');
@@ -50,6 +57,10 @@ async function startServer() {
             metricsCollector.start();
             logger.info('📊 실시간 메트릭 수집 시작됨');
 
+            // S3 자동 백업 시작
+            s3Backup.startAutoBackup();
+            logger.info('☁️  S3 자동 백업 활성화됨');
+
             logger.info('='.repeat(50));
         });
 
@@ -60,27 +71,20 @@ async function startServer() {
 }
 
 // 우아한 종료 처리
-process.on('SIGTERM', async () => {
-    logger.info('SIGTERM 신호 받음. 서버를 종료합니다...');
+async function gracefulShutdown(signal) {
+    logger.info(`${signal} 신호 받음. 서버를 종료합니다...`);
 
     server.close(async () => {
         metricsCollector.stop();
+        await s3Backup.shutdown(); // S3에 최종 백업 후 종료
         await DatabaseManager.close();
         logger.info('서버가 정상적으로 종료되었습니다.');
         process.exit(0);
     });
-});
+}
 
-process.on('SIGINT', async () => {
-    logger.info('SIGINT 신호 받음. 서버를 종료합니다...');
-
-    server.close(async () => {
-        metricsCollector.stop();
-        await DatabaseManager.close();
-        logger.info('서버가 정상적으로 종료되었습니다.');
-        process.exit(0);
-    });
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // 처리되지 않은 오류 처리
 process.on('unhandledRejection', (reason, promise) => {
